@@ -57,24 +57,26 @@ function ScheduleCard({ s, whatsappUrl }: { s: Schedule; whatsappUrl: string }) 
           ))}
         </div>
 
-        <dl className="mt-4 space-y-2 border-t border-border pt-4 text-sm">
-          <div className="flex items-center justify-between">
-            <dt className="flex items-center gap-2 text-muted-foreground">
+        <dl className="mt-4 space-y-2.5 border-t border-border pt-4 text-sm">
+          <div className="flex items-start justify-between gap-4">
+            <dt className="flex items-center gap-2 text-muted-foreground shrink-0 mt-0.5">
               <Clock className="size-4" /> Durasi
             </dt>
-            <dd className="font-semibold text-foreground">{s.duration}</dd>
+            <dd className="font-semibold text-foreground text-right">{s.duration}</dd>
           </div>
-          <div className="flex items-center justify-between">
-            <dt className="flex items-center gap-2 text-muted-foreground">
+          <div className="flex items-start justify-between gap-4">
+            <dt className="flex items-center gap-2 text-muted-foreground shrink-0 mt-0.5">
               <Plane className="size-4" /> Flight
             </dt>
-            <dd className="font-semibold text-foreground">{s.flight}</dd>
+            <dd className="font-semibold text-foreground text-right text-xs leading-normal max-w-[65%] break-words">
+              {s.flight}
+            </dd>
           </div>
-          <div className="flex items-center justify-between">
-            <dt className="flex items-center gap-2 text-muted-foreground">
+          <div className="flex items-start justify-between gap-4">
+            <dt className="flex items-center gap-2 text-muted-foreground shrink-0 mt-0.5">
               <MapPin className="size-4" /> Landing
             </dt>
-            <dd className="font-semibold text-foreground">{s.landing}</dd>
+            <dd className="font-semibold text-foreground text-right">{s.landing}</dd>
           </div>
         </dl>
 
