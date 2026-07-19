@@ -68,6 +68,9 @@ import {
   Database,
   ShoppingBag,
   Info,
+  Globe,
+  ChevronDown,
+  ChevronUp,
 } from 'lucide-react'
 import { type Package, type Schedule, type Service } from '@/lib/data'
 
@@ -86,6 +89,10 @@ export default function DashboardPage() {
   // Sub-tabs
   const [bookingSubTab, setBookingSubTab] = useState<'matrix' | 'personal'>('matrix')
   const [verifySubTab, setVerifySubTab] = useState<'matrix' | 'package'>('matrix')
+
+  // Dropdown States
+  const [isDaftarDropdownOpen, setIsDaftarDropdownOpen] = useState(false)
+  const [isVerifyDropdownOpen, setIsVerifyDropdownOpen] = useState(false)
 
   // CMS Data States (Admin only)
   const [packagesList, setPackagesList] = useState<Package[]>([])
@@ -146,6 +153,7 @@ export default function DashboardPage() {
     if (modeParam === 'booking') {
       setMemberTab('register')
       setBookingSubTab('personal')
+      setIsDaftarDropdownOpen(true)
     }
     if (pkgParam) {
       setBookSelectedPkg(pkgParam)
@@ -472,6 +480,14 @@ export default function DashboardPage() {
             {isMember ? (
               // MEMBER SIDEBAR NAVIGATION
               <>
+                <a
+                  href="/"
+                  className="flex items-center gap-3 rounded-xl px-4 py-3 text-sm font-bold text-slate-600 hover:bg-slate-50 hover:text-slate-900 border border-slate-200 bg-slate-50/50 mb-2 transition-all"
+                >
+                  <Globe className="size-4.5 text-primary animate-pulse" />
+                  Lihat Website Utama
+                </a>
+
                 <button
                   onClick={() => {
                     setMemberTab('overview')
@@ -517,21 +533,56 @@ export default function DashboardPage() {
                   Papan Fly II
                 </button>
 
-                <button
-                  onClick={() => {
-                    setMemberTab('register')
-                    setBookingSubTab('matrix')
-                    if (window.innerWidth < 768) setIsSidebarOpen(false)
-                  }}
-                  className={`flex items-center gap-3 rounded-xl px-4 py-3 text-sm font-bold transition-all ${
-                    memberTab === 'register'
-                      ? 'bg-primary/10 text-primary'
-                      : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
-                  }`}
-                >
-                  <UserPlus className="size-4.5" />
-                  Daftar &amp; Booking Paket
-                </button>
+                {/* Dropdown Pendaftaran & Booking */}
+                <div className="space-y-1">
+                  <button
+                    onClick={() => setIsDaftarDropdownOpen(!isDaftarDropdownOpen)}
+                    className={`flex w-full items-center justify-between rounded-xl px-4 py-3 text-sm font-bold transition-all ${
+                      memberTab === 'register'
+                        ? 'bg-primary/5 text-primary'
+                        : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
+                    }`}
+                  >
+                    <div className="flex items-center gap-3">
+                      <UserPlus className="size-4.5" />
+                      Pendaftaran &amp; Booking
+                    </div>
+                    {isDaftarDropdownOpen ? <ChevronUp className="size-4" /> : <ChevronDown className="size-4" />}
+                  </button>
+
+                  {isDaftarDropdownOpen && (
+                    <div className="pl-6 space-y-1 border-l border-slate-200 ml-6 animate-in slide-in-from-top-1 duration-150">
+                      <button
+                        onClick={() => {
+                          setMemberTab('register')
+                          setBookingSubTab('matrix')
+                          if (window.innerWidth < 768) setIsSidebarOpen(false)
+                        }}
+                        className={`flex w-full items-center gap-2 rounded-lg py-2 px-3 text-xs font-semibold transition-all text-left ${
+                          memberTab === 'register' && bookingSubTab === 'matrix'
+                            ? 'text-primary bg-primary/5 font-bold font-semibold'
+                            : 'text-slate-550 hover:text-slate-800'
+                        }`}
+                      >
+                        Pendaftaran Mitra
+                      </button>
+                      <button
+                        onClick={() => {
+                          setMemberTab('register')
+                          setBookingSubTab('personal')
+                          if (window.innerWidth < 768) setIsSidebarOpen(false)
+                        }}
+                        className={`flex w-full items-center gap-2 rounded-lg py-2 px-3 text-xs font-semibold transition-all text-left ${
+                          memberTab === 'register' && bookingSubTab === 'personal'
+                            ? 'text-primary bg-primary/5 font-bold font-semibold'
+                            : 'text-slate-550 hover:text-slate-800'
+                        }`}
+                      >
+                        Booking Paket Pribadi
+                      </button>
+                    </div>
+                  )}
+                </div>
 
                 <button
                   onClick={() => {
@@ -611,26 +662,74 @@ export default function DashboardPage() {
                   Layanan Slide
                 </button>
 
-                <button
-                  onClick={() => {
-                    setAdminTab('deposits')
-                    if (window.innerWidth < 768) setIsSidebarOpen(false)
-                  }}
-                  className={`flex items-center gap-3 rounded-xl px-4 py-3 text-sm font-bold transition-all relative ${
-                    adminTab === 'deposits'
-                      ? 'bg-primary/10 text-primary'
-                      : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
-                  }`}
-                >
-                  <FileText className="size-4.5" />
-                  Verifikasi Setoran
-                  {(matrixState && matrixState.depositRequests.filter((r) => r.status === 'pending').length > 0 ||
-                    packageBookings.filter((b) => b.status === 'pending').length > 0) && (
-                    <span className="absolute right-3 top-1/2 -translate-y-1/2 flex size-5 items-center justify-center rounded-full bg-rose-500 text-[10px] font-bold text-white">
-                      {matrixState!.depositRequests.filter((r) => r.status === 'pending').length + packageBookings.filter((b) => b.status === 'pending').length}
-                    </span>
+                {/* Dropdown Verifikasi Setoran */}
+                <div className="space-y-1">
+                  <button
+                    onClick={() => setIsVerifyDropdownOpen(!isVerifyDropdownOpen)}
+                    className={`flex w-full items-center justify-between rounded-xl px-4 py-3 text-sm font-bold transition-all relative ${
+                      adminTab === 'deposits'
+                        ? 'bg-primary/5 text-primary'
+                        : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
+                    }`}
+                  >
+                    <div className="flex items-center gap-3">
+                      <FileText className="size-4.5" />
+                      Verifikasi Setoran
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      {(matrixState && matrixState.depositRequests.filter((r) => r.status === 'pending').length > 0 ||
+                        packageBookings.filter((b) => b.status === 'pending').length > 0) && (
+                        <span className="flex size-5 items-center justify-center rounded-full bg-rose-500 text-[10px] font-bold text-white mr-1">
+                          {matrixState!.depositRequests.filter((r) => r.status === 'pending').length + packageBookings.filter((b) => b.status === 'pending').length}
+                        </span>
+                      )}
+                      {isVerifyDropdownOpen ? <ChevronUp className="size-4" /> : <ChevronDown className="size-4" />}
+                    </div>
+                  </button>
+
+                  {isVerifyDropdownOpen && (
+                    <div className="pl-6 space-y-1 border-l border-slate-200 ml-6 animate-in slide-in-from-top-1 duration-150">
+                      <button
+                        onClick={() => {
+                          setAdminTab('deposits')
+                          setVerifySubTab('matrix')
+                          if (window.innerWidth < 768) setIsSidebarOpen(false)
+                        }}
+                        className={`flex w-full items-center justify-between rounded-lg py-2 px-3 text-xs font-semibold transition-all text-left ${
+                          adminTab === 'deposits' && verifySubTab === 'matrix'
+                            ? 'text-primary bg-primary/5 font-bold font-semibold'
+                            : 'text-slate-550 hover:text-slate-800'
+                        }`}
+                      >
+                        Setoran Kemitraan
+                        {matrixState && matrixState.depositRequests.filter((r) => r.status === 'pending').length > 0 && (
+                          <span className="flex size-4 items-center justify-center rounded-full bg-rose-500 text-[8px] font-bold text-white">
+                            {matrixState.depositRequests.filter((r) => r.status === 'pending').length}
+                          </span>
+                        )}
+                      </button>
+                      <button
+                        onClick={() => {
+                          setAdminTab('deposits')
+                          setVerifySubTab('package')
+                          if (window.innerWidth < 768) setIsSidebarOpen(false)
+                        }}
+                        className={`flex w-full items-center justify-between rounded-lg py-2 px-3 text-xs font-semibold transition-all text-left ${
+                          adminTab === 'deposits' && verifySubTab === 'package'
+                            ? 'text-primary bg-primary/5 font-bold font-semibold'
+                            : 'text-slate-550 hover:text-slate-800'
+                        }`}
+                      >
+                        Pemesanan Paket
+                        {packageBookings.filter((b) => b.status === 'pending').length > 0 && (
+                          <span className="flex size-4 items-center justify-center rounded-full bg-rose-500 text-[8px] font-bold text-white">
+                            {packageBookings.filter((b) => b.status === 'pending').length}
+                          </span>
+                        )}
+                      </button>
+                    </div>
                   )}
-                </button>
+                </div>
 
                 <button
                   onClick={() => {
@@ -941,25 +1040,7 @@ export default function DashboardPage() {
                 {/* MEMBER TAB 4: REGISTER DOWNLINE OR ORDER PACKAGE FOR SELF */}
                 {memberTab === 'register' && (
                   <div className="space-y-6">
-                    {/* Sub-tabs switch */}
-                    <div className="flex rounded-xl bg-slate-100 p-1 border border-slate-200 max-w-md">
-                      <button
-                        onClick={() => setBookingSubTab('matrix')}
-                        className={`flex-1 rounded-lg py-2 text-xs font-bold transition-all ${
-                          bookingSubTab === 'matrix' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-600 hover:text-slate-800'
-                        }`}
-                      >
-                        Pendaftaran Mitra (Matriks)
-                      </button>
-                      <button
-                        onClick={() => setBookingSubTab('personal')}
-                        className={`flex-1 rounded-lg py-2 text-xs font-bold transition-all ${
-                          bookingSubTab === 'personal' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-600 hover:text-slate-800'
-                        }`}
-                      >
-                        Booking Paket Pribadi
-                      </button>
-                    </div>
+                    {/* Matriks Kemitraan or Booking Paket Pribadi (switched via sidebar dropdown) */}
 
                     {/* DOWNLINE REGISTRATION SUBTAB */}
                     {bookingSubTab === 'matrix' && (
@@ -1597,35 +1678,7 @@ export default function DashboardPage() {
               {/* ADMIN TAB 5: DEPOSIT VERIFICATIONS PANEL */}
               {adminTab === 'deposits' && matrixState && (
                 <div className="space-y-6">
-                  {/* Toggle subtabs */}
-                  <div className="flex rounded-xl bg-slate-100 p-1 border border-slate-200 max-w-md">
-                    <button
-                      onClick={() => setVerifySubTab('matrix')}
-                      className={`flex-1 rounded-lg py-2.5 text-xs font-bold transition-all relative ${
-                        verifySubTab === 'matrix' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-655 hover:text-slate-800'
-                      }`}
-                    >
-                      Setoran Kemitraan (Matriks)
-                      {matrixState.depositRequests.filter((r) => r.status === 'pending').length > 0 && (
-                        <span className="absolute -top-1 -right-1 flex size-4 items-center justify-center rounded-full bg-rose-500 text-[8px] font-bold text-white">
-                          {matrixState.depositRequests.filter((r) => r.status === 'pending').length}
-                        </span>
-                      )}
-                    </button>
-                    <button
-                      onClick={() => setVerifySubTab('package')}
-                      className={`flex-1 rounded-lg py-2.5 text-xs font-bold transition-all relative ${
-                        verifySubTab === 'package' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-655 hover:text-slate-800'
-                      }`}
-                    >
-                      Pemesanan Paket Umroh
-                      {packageBookings.filter((b) => b.status === 'pending').length > 0 && (
-                        <span className="absolute -top-1 -right-1 flex size-4 items-center justify-center rounded-full bg-rose-500 text-[8px] font-bold text-white">
-                          {packageBookings.filter((b) => b.status === 'pending').length}
-                        </span>
-                      )}
-                    </button>
-                  </div>
+                  {/* Verifikasi Setoran Kemitraan / Pemesanan Paket (switched via sidebar dropdown) */}
 
                   {/* MATRIX DEPOSITS VERIFICATION */}
                   {verifySubTab === 'matrix' && (
