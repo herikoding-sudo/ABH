@@ -76,7 +76,11 @@ export async function getUsersAsync(): Promise<DynamicUser[]> {
       // Sync local cache
       const nonMock = dbUsers.filter((u) => !MOCK_USERS.some((m) => m.email.toLowerCase() === u.email.toLowerCase()))
       saveLocalUsers(nonMock)
-      return dbUsers;
+      // Ensure default mock users (admin/superadmin) are always included as a fallback
+      const missingMocks = MOCK_USERS.filter(
+        (m) => !dbUsers.some((u) => u.email.toLowerCase() === m.email.toLowerCase())
+      )
+      return [...dbUsers, ...missingMocks];
     } else {
       // Seed DB with MOCK_USERS
       const payload = MOCK_USERS.map((m) => ({

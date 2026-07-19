@@ -80,8 +80,8 @@ export default function LoginPage() {
         setError('Email atau password salah.')
         setLoading(false)
       }
-    } catch (err) {
-      setError('Terjadi kesalahan sistem.')
+    } catch (err: any) {
+      setError(`Terjadi kesalahan sistem: ${err?.message || err}`)
       setLoading(false)
     }
   }

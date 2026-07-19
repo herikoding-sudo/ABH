@@ -142,6 +142,11 @@ export default function DashboardPage() {
       return
     }
     
+    // Auto-collapse sidebar on mobile screen size
+    if (typeof window !== 'undefined' && window.innerWidth < 768) {
+      setIsSidebarOpen(false)
+    }
+    
     setCurrentUser(session)
     setBookPassengerName(session.name)
 
@@ -775,6 +780,14 @@ export default function DashboardPage() {
           Log Out
         </button>
       </aside>
+
+      {/* Mobile Sidebar Overlay Backdrop */}
+      {isSidebarOpen && (
+        <div
+          className="fixed inset-0 z-30 bg-black/45 backdrop-blur-sm md:hidden animate-in fade-in duration-250"
+          onClick={() => setIsSidebarOpen(false)}
+        />
+      )}
 
       {/* Main Container */}
       <div className="flex-1 flex flex-col min-w-0 relative">

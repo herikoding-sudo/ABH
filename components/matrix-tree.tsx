@@ -46,25 +46,30 @@ export function MatrixTree({ nodes, type }: TreeProps) {
 
   if (type === 'fly1') {
     return (
-      <div className="w-full overflow-x-auto py-8">
-        <div className="min-w-[600px] flex flex-col items-center gap-12">
-          {/* Row 1: Peak (Node 0) */}
-          <div className="flex justify-center relative w-full">
-            {renderNode(nodes[0], 0, 'Puncak (L1)')}
-          </div>
+      <div>
+        <div className="flex items-center gap-1.5 text-[10px] text-slate-400 justify-center md:hidden mb-1.5 animate-pulse">
+          <span>↔️ Geser layar untuk melihat seluruh matriks</span>
+        </div>
+        <div className="w-full overflow-x-auto py-6">
+          <div className="min-w-[600px] flex flex-col items-center gap-12">
+            {/* Row 1: Peak (Node 0) */}
+            <div className="flex justify-center relative w-full">
+              {renderNode(nodes[0], 0, 'Puncak (L1)')}
+            </div>
 
-          {/* Row 2: Mid (Nodes 1, 2) */}
-          <div className="flex justify-between w-full max-w-[360px] relative px-4">
-            {renderNode(nodes[1], 1, 'Sayap (L2)')}
-            {renderNode(nodes[2], 2, 'Sayap (L2)')}
-          </div>
+            {/* Row 2: Mid (Nodes 1, 2) */}
+            <div className="flex justify-between w-full max-w-[360px] relative px-4">
+              {renderNode(nodes[1], 1, 'Sayap (L2)')}
+              {renderNode(nodes[2], 2, 'Sayap (L2)')}
+            </div>
 
-          {/* Row 3: Base (Nodes 3, 4, 5, 6) */}
-          <div className="flex justify-between w-full max-w-[560px] relative">
-            {renderNode(nodes[3], 3, 'Dasar (L3)')}
-            {renderNode(nodes[4], 4, 'Dasar (L3)')}
-            {renderNode(nodes[5], 5, 'Dasar (L3)')}
-            {renderNode(nodes[6], 6, 'Dasar (L3)')}
+            {/* Row 3: Base (Nodes 3, 4, 5, 6) */}
+            <div className="flex justify-between w-full max-w-[560px] relative">
+              {renderNode(nodes[3], 3, 'Dasar (L3)')}
+              {renderNode(nodes[4], 4, 'Dasar (L3)')}
+              {renderNode(nodes[5], 5, 'Dasar (L3)')}
+              {renderNode(nodes[6], 6, 'Dasar (L3)')}
+            </div>
           </div>
         </div>
       </div>
@@ -73,12 +78,16 @@ export function MatrixTree({ nodes, type }: TreeProps) {
 
   // Fly II (15 Nodes)
   return (
-    <div className="w-full overflow-x-auto py-8">
-      <div className="min-w-[1000px] flex flex-col items-center gap-10">
-        {/* Row 1: Peak (Node 0) */}
-        <div className="flex justify-center relative w-full">
-          {renderNode(nodes[0], 0, 'Puncak (L1)')}
-        </div>
+    <div>
+      <div className="flex items-center gap-1.5 text-[10px] text-slate-400 justify-center md:hidden mb-1.5 animate-pulse">
+        <span>↔️ Geser layar untuk melihat seluruh matriks</span>
+      </div>
+      <div className="w-full overflow-x-auto py-6">
+        <div className="min-w-[1000px] flex flex-col items-center gap-10">
+          {/* Row 1: Peak (Node 0) */}
+          <div className="flex justify-center relative w-full">
+            {renderNode(nodes[0], 0, 'Puncak (L1)')}
+          </div>
 
         {/* Row 2: Level 2 (Nodes 1, 2) */}
         <div className="flex justify-between w-full max-w-[480px] relative px-8">
@@ -107,5 +116,6 @@ export function MatrixTree({ nodes, type }: TreeProps) {
         </div>
       </div>
     </div>
+  </div>
   )
 }
