@@ -177,11 +177,12 @@ export default function DashboardPage() {
     setServicesList(getSavedServices())
     setPhone(getSavedPhone())
 
-    // Load package bookings
+    // Load package bookings from cache synchronously first
+    const cachedBookings = getSavedPackageBookings()
     if (session.role === 'member') {
-      setPackageBookings(fetchPackageBookingsAsync(session.email) as any || [])
+      setPackageBookings(cachedBookings.filter((b) => b.memberEmail.toLowerCase() === session.email.toLowerCase()))
     } else {
-      setPackageBookings(fetchPackageBookingsAsync() as any || [])
+      setPackageBookings(cachedBookings)
     }
 
     // 2. Fetch fresh data from Supabase asynchronously (SWR Revalidation)
