@@ -477,7 +477,7 @@ export default function DashboardPage() {
               <div className="text-center font-bold text-slate-800 text-xs border-b border-dashed border-slate-300 pb-2">STRUK TRANSFER M-BANKING</div>
               <div className="flex justify-between"><span>TANGGAL:</span> <span className="font-semibold">{selectedReceipt.date}</span></div>
               <div className="flex justify-between"><span>PENGIRIM:</span> <span className="font-semibold truncate max-w-[160px]">{selectedReceipt.sponsorEmail || selectedReceipt.memberEmail}</span></div>
-              <div className="flex justify-between"><span>PENERIMA:</span> <span className="font-bold text-slate-700">ABH UMROH (BSI)</span></div>
+              <div className="flex justify-between"><span>PENERIMA:</span> <span className="font-bold text-slate-700">PT. Amanah Berkah Haromain (BRI)</span></div>
               <div className="flex justify-between"><span>BERITA/MITRA:</span> <span className="font-semibold text-slate-700">{selectedReceipt.recruitName || selectedReceipt.passengerName}</span></div>
               <div className="flex justify-between"><span>JUMLAH:</span> <span className="font-extrabold text-emerald-600 text-xs">Rp {selectedReceipt.amount.toLocaleString('id-ID')}</span></div>
               <div className="flex justify-between"><span>STATUS:</span> <span className="bg-emerald-100 text-emerald-700 font-bold px-1.5 py-0.5 rounded text-[9px]">TRANSFER BERHASIL</span></div>
@@ -1123,7 +1123,7 @@ export default function DashboardPage() {
                       </span>
                     </div>
 
-                    <MatrixTree nodes={matrixState.fly1Board} type="fly1" />
+                    <MatrixTree nodes={matrixState.fly1Board} type="fly1" currentUserEmail={currentUser.email} />
 
                     {!matrixState.hasCompletedFly1 && (
                       <div className="rounded-2xl bg-slate-50 p-4 border border-slate-200 text-center text-sm text-slate-500">
@@ -1157,7 +1157,7 @@ export default function DashboardPage() {
                         </span>
                       </div>
 
-                      <MatrixTree nodes={matrixState.fly2Board} type="fly2" />
+                      <MatrixTree nodes={matrixState.fly2Board} type="fly2" currentUserEmail={currentUser.email} />
 
                       {matrixState.hasCompletedFly1 && !matrixState.hasCompletedFly2 && (
                         <div className="rounded-2xl bg-slate-50 p-4 border border-slate-200 text-center text-sm text-slate-500">
@@ -1342,7 +1342,7 @@ export default function DashboardPage() {
                               </div>
                             </div>
                             <p className="mt-1.5 text-[10px] text-slate-550 flex items-center gap-1">
-                              <Info className="size-3 text-primary" /> Transfer ke rekening resmi Bank Syariah Indonesia (BSI) BSM: 123-456-7890.
+                              <Info className="size-3 text-primary" /> Transfer ke rekening resmi BRI: 696401021991539 (a.n. PT. Amanah Berkah Haromain).
                             </p>
                           </div>
 

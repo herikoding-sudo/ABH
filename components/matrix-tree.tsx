@@ -4,9 +4,10 @@ import { User, UserPlus } from 'lucide-react'
 type TreeProps = {
   nodes: MatrixNode[]
   type: 'fly1' | 'fly2'
+  currentUserEmail?: string
 }
 
-export function MatrixTree({ nodes, type }: TreeProps) {
+export function MatrixTree({ nodes, type, currentUserEmail }: TreeProps) {
   // Helper to render a single node
   const renderNode = (node: MatrixNode, index: number, levelName: string) => {
     if (!node) {
@@ -22,7 +23,9 @@ export function MatrixTree({ nodes, type }: TreeProps) {
       )
     }
 
-    const isUser = node.isUser
+    const isUser = currentUserEmail 
+      ? node.email?.toLowerCase() === currentUserEmail.toLowerCase()
+      : !!node.isUser
 
     return (
       <div
