@@ -30,6 +30,7 @@ import {
   rejectDepositRequestAsync,
   resetMatrixSimulationAsync,
   fetchPackageBookingsAsync,
+  getSavedPackageBookings,
   submitPackageBookingAsync,
   approvePackageBookingAsync,
   rejectPackageBookingAsync,
