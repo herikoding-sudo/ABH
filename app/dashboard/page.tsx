@@ -395,8 +395,17 @@ export default function DashboardPage() {
 
   if (!currentUser) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-slate-50 text-slate-800">
-        Loading Session...
+      <div className="flex min-h-screen flex-col items-center justify-center bg-slate-50">
+        <div className="flex flex-col items-center gap-5">
+          {/* Animated pulsing Logo */}
+          <div className="animate-pulse">
+            <Logo />
+          </div>
+          {/* Custom smooth golden progress loader */}
+          <div className="h-1 w-28 overflow-hidden rounded-full bg-slate-200">
+            <div className="h-full w-14 animate-[pulse_1s_infinite_ease-in-out] rounded-full bg-primary" />
+          </div>
+        </div>
       </div>
     )
   }
