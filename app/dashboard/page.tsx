@@ -20,6 +20,7 @@ import {
   saveServicesAsync,
   fetchSettingsAsync,
   saveSettingsAsync,
+  updateUserPasswordAsync,
 } from '@/lib/data-store'
 import {
   getMatrixState,
@@ -64,6 +65,8 @@ import {
   FileText,
   FileImage,
   Eye,
+  EyeOff,
+  Key,
   Check,
   X,
   Database,
@@ -94,6 +97,12 @@ export default function DashboardPage() {
   // Dropdown States
   const [isDaftarDropdownOpen, setIsDaftarDropdownOpen] = useState(false)
   const [isVerifyDropdownOpen, setIsVerifyDropdownOpen] = useState(false)
+
+  // Superadmin Manage Users States
+  const [systemUsers, setSystemUsers] = useState<DynamicUser[]>([])
+  const [visiblePasswords, setVisiblePasswords] = useState<Record<string, boolean>>({})
+  const [editingUser, setEditingUser] = useState<DynamicUser | null>(null)
+  const [newPasswordVal, setNewPasswordVal] = useState('')
 
   // CMS Data States (Admin only)
   const [packagesList, setPackagesList] = useState<Package[]>([])
@@ -199,6 +208,7 @@ export default function DashboardPage() {
     fetchSchedulesAsync().then((list) => setSchedulesList(list))
     fetchServicesAsync().then((list) => setServicesList(list))
     fetchSettingsAsync().then((settings) => setPhone(settings.phone))
+    getUsersAsync().then((list) => setSystemUsers(list))
 
     // Revalidate package bookings
     if (session.role === 'member') {
@@ -469,6 +479,67 @@ export default function DashboardPage() {
               <div className="flex justify-between"><span>BERITA/MITRA:</span> <span className="font-semibold text-slate-700">{selectedReceipt.recruitName || selectedReceipt.passengerName}</span></div>
               <div className="flex justify-between"><span>JUMLAH:</span> <span className="font-extrabold text-emerald-600 text-xs">Rp {selectedReceipt.amount.toLocaleString('id-ID')}</span></div>
               <div className="flex justify-between"><span>STATUS:</span> <span className="bg-emerald-100 text-emerald-700 font-bold px-1.5 py-0.5 rounded text-[9px]">TRANSFER BERHASIL</span></div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Superadmin Edit Password Modal */}
+      {editingUser && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/55 p-4 backdrop-blur-sm">
+          <div className="w-full max-w-sm rounded-3xl bg-white p-6 shadow-2xl border border-slate-200 animate-in fade-in zoom-in-95 duration-200">
+            <div className="flex justify-between items-center border-b border-slate-100 pb-3">
+              <h4 className="font-bold text-slate-850 flex items-center gap-2">
+                <Key className="size-4.5 text-primary" /> Ubah Password Pengguna
+              </h4>
+              <button
+                onClick={() => {
+                  setEditingUser(null)
+                  setNewPasswordVal('')
+                }}
+                className="text-slate-400 hover:text-slate-600 font-bold"
+              >
+                Tutup
+              </button>
+            </div>
+            <div className="mt-4 space-y-4 text-left">
+              <div>
+                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Pengguna</span>
+                <p className="font-bold text-slate-800 text-sm mt-0.5">{editingUser.name}</p>
+                <p className="text-xs text-slate-500">{editingUser.email}</p>
+              </div>
+
+              <div>
+                <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider block">Password Baru</label>
+                <input
+                  type="text"
+                  required
+                  value={newPasswordVal}
+                  onChange={(e) => setNewPasswordVal(e.target.value)}
+                  placeholder="Masukkan password baru"
+                  className="mt-2 w-full rounded-xl bg-slate-50 py-3 px-4 text-sm text-slate-900 placeholder-slate-400 ring-1 ring-slate-200 focus:outline-none focus:ring-primary focus:bg-white transition-all font-mono"
+                />
+              </div>
+
+              <button
+                onClick={async () => {
+                  const res = await updateUserPasswordAsync(editingUser.email, newPasswordVal)
+                  if (res.success) {
+                    showToast('Password pengguna berhasil diperbarui!')
+                    setEditingUser(null)
+                    setNewPasswordVal('')
+                    
+                    // Reload users list
+                    const freshUsersList = await getUsersAsync()
+                    setSystemUsers(freshUsersList)
+                  } else {
+                    showToast(res.message)
+                  }
+                }}
+                className="w-full rounded-2xl bg-primary py-3.5 text-sm font-semibold text-primary-foreground shadow-lg shadow-primary/20 hover:bg-primary/95 transition-all"
+              >
+                Simpan Password Baru
+              </button>
             </div>
           </div>
         </div>
@@ -780,16 +851,17 @@ export default function DashboardPage() {
                 )}
               </>
             )}
+
+            {/* Logout button moved up, below the last menu item */}
+            <button
+              onClick={handleLogout}
+              className="mt-4 flex items-center gap-3 rounded-xl px-4 py-3 text-sm font-bold text-rose-600 hover:bg-rose-50 hover:text-rose-700 transition-all border border-rose-200 bg-rose-50/30 w-full"
+            >
+              <LogOut className="size-4.5" />
+              Log Out
+            </button>
           </nav>
         </div>
-
-        <button
-          onClick={handleLogout}
-          className="flex items-center gap-3 rounded-xl px-4 py-3 text-sm font-bold text-rose-600 hover:bg-rose-50 hover:text-rose-700 transition-all border border-rose-200 bg-rose-50/30 min-w-[208px]"
-        >
-          <LogOut className="size-4.5" />
-          Log Out
-        </button>
       </aside>
 
       {/* Mobile Sidebar Overlay Backdrop */}
@@ -2228,11 +2300,13 @@ export default function DashboardPage() {
                           <th className="px-4 py-3">Nama Pengguna</th>
                           <th className="px-4 py-3">Email</th>
                           <th className="px-4 py-3">Peran (Role)</th>
+                          <th className="px-4 py-3">Password</th>
                           <th className="px-4 py-3">Status Izin</th>
+                          <th className="px-4 py-3 text-center">Aksi</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-100">
-                        {MOCK_USERS.map((user) => (
+                        {(systemUsers.length > 0 ? systemUsers : MOCK_USERS).map((user) => (
                           <tr key={user.email} className="hover:bg-slate-50/50 transition-colors">
                             <td className="px-4 py-4.5 font-bold text-slate-800">{user.name}</td>
                             <td className="px-4 py-4.5 text-slate-500">{user.email}</td>
@@ -2249,6 +2323,27 @@ export default function DashboardPage() {
                                 {user.role}
                               </span>
                             </td>
+                            <td className="px-4 py-4.5 font-mono text-xs">
+                              <div className="flex items-center gap-2">
+                                <span>{visiblePasswords[user.email] ? (user.password || '••••••••') : '••••••••'}</span>
+                                <button
+                                  onClick={() => {
+                                    setVisiblePasswords((prev) => ({
+                                      ...prev,
+                                      [user.email]: !prev[user.email],
+                                    }))
+                                  }}
+                                  className="text-slate-400 hover:text-slate-600 transition-all p-1"
+                                  title={visiblePasswords[user.email] ? 'Sembunyikan Password' : 'Lihat Password'}
+                                >
+                                  {visiblePasswords[user.email] ? (
+                                    <EyeOff className="size-4" />
+                                  ) : (
+                                    <Eye className="size-4" />
+                                  )}
+                                </button>
+                              </div>
+                            </td>
                             <td className="px-4 py-4.5 text-xs">
                               {user.role === 'member' ? (
                                 <span className="flex items-center gap-1.5 text-amber-700 font-medium">
@@ -2259,6 +2354,18 @@ export default function DashboardPage() {
                                   <CheckCircle2 className="size-3.5 text-emerald-500" /> Full Access
                                 </span>
                               )}
+                            </td>
+                            <td className="px-4 py-4.5 text-center">
+                              <button
+                                onClick={() => {
+                                  setEditingUser(user)
+                                  setNewPasswordVal(user.password || '')
+                                }}
+                                className="inline-flex items-center gap-1.5 rounded-xl bg-primary/10 px-3 py-1.5 text-xs font-bold text-primary hover:bg-primary/20 transition-all"
+                              >
+                                <Key className="size-3.5" />
+                                Ganti Password
+                              </button>
                             </td>
                           </tr>
                         ))}

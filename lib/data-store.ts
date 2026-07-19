@@ -441,3 +441,35 @@ export async function saveSettingsAsync(phoneNum: string): Promise<boolean> {
     return false
   }
 }
+
+export async function updateUserPasswordAsync(email: string, newPassword: string): Promise<{ success: boolean; message: string }> {
+  // Update in default mock accounts locally if they match
+  const mockMatch = MOCK_USERS.find((u) => u.email.toLowerCase() === email.toLowerCase())
+  if (mockMatch) {
+    mockMatch.password = newPassword
+  }
+
+  // 1. Update in local storage
+  const localUsers = getSavedLocalUsers()
+  const match = localUsers.find((u) => u.email.toLowerCase() === email.toLowerCase())
+  if (match) {
+    match.password = newPassword
+    saveLocalUsers(localUsers)
+  }
+
+  // 2. Update in Supabase if configured
+  if (isSupabaseConfigured && supabase) {
+    try {
+      const { error } = await supabase
+        .from('user_accounts')
+        .update({ password: newPassword })
+        .eq('email', email)
+      if (error) throw error
+    } catch (err) {
+      console.error('Error updating user password in Supabase:', err)
+      return { success: false, message: 'Gagal memperbarui password di database.' }
+    }
+  }
+
+  return { success: true, message: 'Password berhasil diperbarui!' }
+}
