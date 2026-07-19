@@ -320,33 +320,6 @@ export default function LoginPage() {
             </button>
           </form>
         )}
-
-        {/* Quick login helper buttons */}
-        {activeTab === 'login' && (
-          <div className="mt-8 border-t border-slate-100 pt-6 text-center">
-            <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">Demo Login Cepat</p>
-            <div className="mt-3 flex flex-wrap gap-2 justify-center">
-              <button
-                onClick={() => handleQuickFill('member')}
-                className="rounded-lg bg-slate-100 px-3 py-1.5 text-xs font-medium text-slate-600 border border-slate-200 transition-all hover:bg-slate-200 hover:text-slate-800"
-              >
-                Member
-              </button>
-              <button
-                onClick={() => handleQuickFill('admin')}
-                className="rounded-lg bg-slate-100 px-3 py-1.5 text-xs font-medium text-slate-600 border border-slate-200 transition-all hover:bg-slate-200 hover:text-slate-800"
-              >
-                Admin
-              </button>
-              <button
-                onClick={() => handleQuickFill('superadmin')}
-                className="rounded-lg bg-slate-100 px-3 py-1.5 text-xs font-medium text-slate-600 border border-slate-200 transition-all hover:bg-slate-200 hover:text-slate-800"
-              >
-                Superadmin
-              </button>
-            </div>
-          </div>
-        )}
       </div>
     </main>
   )
