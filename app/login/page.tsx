@@ -140,9 +140,9 @@ export default function LoginPage() {
 
       <div className="relative w-full max-w-md rounded-3xl bg-white p-8 shadow-xl ring-1 ring-slate-200">
         <div className="flex flex-col items-center">
-          <Logo />
+          <Logo size="lg" />
           <h1 className="mt-6 text-2xl font-bold tracking-tight text-slate-900">
-            {activeTab === 'login' ? 'Login Konten Editor' : 'Registrasi Member Baru'}
+            {activeTab === 'login' ? 'Silahkan Login' : 'Registrasi Member Baru'}
           </h1>
           <p className="mt-2 text-center text-sm text-slate-500">
             {activeTab === 'login'
