@@ -7,12 +7,17 @@ export type User = {
   email: string
   role: Role
   name: string
+  status?: 'pending' | 'active'
 }
 
-export const MOCK_USERS = [
-  { email: 'member@abh.com', password: 'member123', role: 'member' as Role, name: 'Ahmad (Member)' },
-  { email: 'admin@abh.com', password: 'admin123', role: 'admin' as Role, name: 'Budi (Admin)' },
-  { email: 'superadmin@abh.com', password: 'super123', role: 'superadmin' as Role, name: 'Siti (Superadmin)' },
+export type DynamicUser = User & {
+  password?: string
+}
+
+export const MOCK_USERS: DynamicUser[] = [
+  { email: 'member@abh.com', password: 'member123', role: 'member' as Role, name: 'Ahmad (Member)', status: 'active' },
+  { email: 'admin@abh.com', password: 'admin123', role: 'admin' as Role, name: 'Budi (Admin)', status: 'active' },
+  { email: 'superadmin@abh.com', password: 'super123', role: 'superadmin' as Role, name: 'Siti (Superadmin)', status: 'active' },
 ]
 
 export function getSession(): User | null {
@@ -30,6 +35,141 @@ export function setSession(user: User) {
 export function clearSession() {
   if (typeof window !== 'undefined') {
     sessionStorage.removeItem('abh_session')
+  }
+}
+
+// ----------------------------------------------------
+// Dynamic User Management & Registration
+// ----------------------------------------------------
+export function getSavedLocalUsers(): DynamicUser[] {
+  if (typeof window === 'undefined') return []
+  const saved = localStorage.getItem('abh_registered_users')
+  return saved ? JSON.parse(saved) : []
+}
+
+export function saveLocalUsers(users: DynamicUser[]) {
+  if (typeof window !== 'undefined') {
+    localStorage.setItem('abh_registered_users', JSON.stringify(users))
+  }
+}
+
+export async function getUsersAsync(): Promise<DynamicUser[]> {
+  const localUsers = getSavedLocalUsers()
+  const combined = [...MOCK_USERS, ...localUsers]
+
+  if (!isSupabaseConfigured || !supabase) {
+    return combined
+  }
+
+  try {
+    const { data, error } = await supabase.from('user_accounts').select('*')
+    if (error) throw error
+
+    if (data && data.length > 0) {
+      const dbUsers: DynamicUser[] = data.map((item) => ({
+        email: item.email,
+        password: item.password,
+        role: item.role as Role,
+        name: item.name,
+        status: item.status as 'pending' | 'active',
+      }))
+      // Sync local cache
+      const nonMock = dbUsers.filter((u) => !MOCK_USERS.some((m) => m.email.toLowerCase() === u.email.toLowerCase()))
+      saveLocalUsers(nonMock)
+      return dbUsers;
+    } else {
+      // Seed DB with MOCK_USERS
+      const payload = MOCK_USERS.map((m) => ({
+        email: m.email,
+        password: m.password,
+        role: m.role,
+        name: m.name,
+        status: m.status,
+      }))
+      await supabase.from('user_accounts').insert(payload)
+    }
+  } catch (err) {
+    console.error('Error fetching users from Supabase:', err)
+  }
+  return combined
+}
+
+export async function registerUserAsync(name: string, email: string, password: string): Promise<{ success: boolean; message: string }> {
+  const allUsers = await getUsersAsync()
+  const exists = allUsers.some((u) => u.email.toLowerCase() === email.toLowerCase())
+  if (exists) {
+    return { success: false, message: 'Email sudah terdaftar. Silakan gunakan email lain.' }
+  }
+
+  const newUser: DynamicUser = {
+    email,
+    password,
+    role: 'member' as Role,
+    name,
+    status: 'pending',
+  }
+
+  // 1. Save to local storage
+  const localUsers = getSavedLocalUsers()
+  localUsers.push(newUser)
+  saveLocalUsers(localUsers)
+
+  // 2. Save to Supabase if configured
+  if (isSupabaseConfigured && supabase) {
+    try {
+      const { error } = await supabase.from('user_accounts').insert({
+        email,
+        password,
+        role: 'member',
+        name,
+        status: 'pending',
+      })
+      if (error) throw error
+    } catch (err) {
+      console.error('Error saving new user to Supabase:', err)
+      return { success: false, message: 'Gagal mendaftarkan user di database.' }
+    }
+  }
+
+  // 3. Create a pending deposit request under the default sponsor (member@abh.com)
+  // This automatically routes the registration to the Admin panel for approval
+  const depositAmount = 2500000 // default initial deposit
+  if (isSupabaseConfigured && supabase) {
+    try {
+      await supabase.from('deposit_requests').insert({
+        sponsor_email: 'member@abh.com',
+        recruit_name: name,
+        recruit_email: email,
+        amount: depositAmount,
+        status: 'pending',
+        proof_image: '/images/proof-mock.png',
+        date_text: new Date().toLocaleDateString('id-ID'),
+      })
+    } catch (err) {
+      console.error('Error creating deposit request for new user in Supabase:', err)
+    }
+  } else {
+    // Add locally to matrix-store's deposit requests
+    const matrixSaved = localStorage.getItem('abh_matrix_state')
+    if (matrixSaved) {
+      const matrixState = JSON.parse(matrixSaved)
+      matrixState.depositRequests.unshift({
+        id: `req_${Date.now()}`,
+        date: new Date().toLocaleDateString('id-ID'),
+        sponsorEmail: 'member@abh.com',
+        recruitName: name,
+        recruitEmail: email,
+        amount: depositAmount,
+        status: 'pending',
+        proofImage: '/images/proof-mock.png',
+      })
+      localStorage.setItem('abh_matrix_state', JSON.stringify(matrixState))
+    }
+  }
+
+  return {
+    success: true,
+    message: 'Registrasi berhasil! Akun Anda sedang ditangguhkan menunggu persetujuan Setoran Awal Rp 2.500.000 oleh Admin.',
   }
 }
 
@@ -62,7 +202,6 @@ export async function fetchPackagesAsync(): Promise<Package[]> {
     if (error) throw error
 
     if (data && data.length > 0) {
-      // Map snake_case database columns to camelCase package fields
       const mapped: Package[] = data.map((item) => ({
         name: item.name,
         price: item.price,
@@ -84,12 +223,11 @@ export async function fetchPackagesAsync(): Promise<Package[]> {
 }
 
 export async function savePackagesAsync(list: Package[]): Promise<boolean> {
-  savePackages(list) // Always update local cache
+  savePackages(list)
 
   if (!isSupabaseConfigured || !supabase) return true
 
   try {
-    // Drop all rows and re-insert to preserve order index easily
     await supabase.from('packages').delete().neq('name', '')
 
     const payload = list.map((item, idx) => ({

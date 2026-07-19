@@ -17,7 +17,25 @@ VALUES ('global', '0895-1844-3354', 2500000, 250000, 3500000, 30000000)
 ON CONFLICT (id) DO NOTHING;
 
 
--- 2. PACKAGES
+-- 2. USER ACCOUNTS (Dynamic Authentication)
+CREATE TABLE IF NOT EXISTS user_accounts (
+  email TEXT PRIMARY KEY,
+  password TEXT NOT NULL,
+  role TEXT NOT NULL DEFAULT 'member',
+  name TEXT NOT NULL,
+  status TEXT NOT NULL DEFAULT 'active' -- 'pending', 'active'
+);
+
+-- Seed Mock Users
+INSERT INTO user_accounts (email, password, role, name, status)
+VALUES
+('member@abh.com', 'member123', 'member', 'Ahmad (Member)', 'active'),
+('admin@abh.com', 'admin123', 'admin', 'Budi (Admin)', 'active'),
+('superadmin@abh.com', 'super123', 'superadmin', 'Siti (Superadmin)', 'active')
+ON CONFLICT (email) DO NOTHING;
+
+
+-- 3. PACKAGES
 CREATE TABLE IF NOT EXISTS packages (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   name TEXT NOT NULL,
@@ -41,7 +59,7 @@ VALUES
 ('Paket VIP 12 D', '40.5 Juta', '12 Hari', 'Saudia', 'Maden / Haritia / Setaraf (Bintang 5)', 'Grand Zam Zam / Sofwah Orchid / Fairmont Hotel (Bintang 5)', '{"Free Kereta Cepat", "Perlengkapan Eksklusif"}', false, true, 3);
 
 
--- 3. SCHEDULES
+-- 4. SCHEDULES
 CREATE TABLE IF NOT EXISTS schedules (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   name TEXT NOT NULL,
@@ -65,7 +83,7 @@ VALUES
 ('VIP Bintang 5 9D', '25 Sep 2026', 'Rp 37.5 Juta', 'open', '9 Hari', 'Saudia / Garuda', 'Madinah', '/images/umrah-4.jpg', true, 3);
 
 
--- 4. SERVICES SLIDER
+-- 5. SERVICES SLIDER
 CREATE TABLE IF NOT EXISTS services (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   title TEXT NOT NULL,
@@ -83,7 +101,7 @@ VALUES
 ('Badal Haji & Umroh', 'Jasa pelaksanaan ibadah Haji atau Umroh untuk menggantikan anggota keluarga yang sakit keras atau telah wafat.', '/images/umrah-1.jpg', 3);
 
 
--- 5. MEMBER MATRIX STATES
+-- 6. MEMBER MATRIX STATES
 CREATE TABLE IF NOT EXISTS member_matrix (
   email TEXT PRIMARY KEY,
   balance NUMERIC DEFAULT 0,
@@ -98,7 +116,7 @@ VALUES ('member@abh.com', 0, 0, false, false)
 ON CONFLICT (email) DO NOTHING;
 
 
--- 6. MATRIX NODES
+-- 7. MATRIX NODES
 CREATE TABLE IF NOT EXISTS matrix_nodes (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   member_email TEXT NOT NULL,
@@ -132,7 +150,7 @@ VALUES
 ('member@abh.com', 'fly2', 12, 'Mitra L', 'm_l@email.com', false);
 
 
--- 7. TRANSACTIONS
+-- 8. TRANSACTIONS
 CREATE TABLE IF NOT EXISTS transactions (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   member_email TEXT NOT NULL,
@@ -148,7 +166,7 @@ INSERT INTO transactions (member_email, date_text, tx_type, amount, description)
 VALUES ('member@abh.com', '19/07/2026', 'deposit', -2500000, 'Setoran Awal Registrasi Member Umroh');
 
 
--- 8. DEPOSIT REQUESTS
+-- 9. DEPOSIT REQUESTS
 CREATE TABLE IF NOT EXISTS deposit_requests (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   sponsor_email TEXT NOT NULL,

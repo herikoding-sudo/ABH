@@ -377,6 +377,17 @@ export async function approveDepositRequestAsync(requestId: string): Promise<{ s
     state.balance += state.settings.sponsorReward
     state.downlinesCount += 1
 
+    // Activate the user in local storage
+    const usersSaved = localStorage.getItem('abh_registered_users')
+    if (usersSaved) {
+      const users = JSON.parse(usersSaved)
+      const match = users.find((u: any) => u.email.toLowerCase() === req.recruitEmail.toLowerCase())
+      if (match) {
+        match.status = 'active'
+        localStorage.setItem('abh_registered_users', JSON.stringify(users))
+      }
+    }
+
     let splitOccurred = false
     let placementMessage = `Pendaftaran disetujui!`
 
@@ -439,6 +450,40 @@ export async function approveDepositRequestAsync(requestId: string): Promise<{ s
 
     // Update status to approved
     await supabase.from('deposit_requests').update({ status: 'approved' }).eq('id', requestId)
+
+    // Activate user account and pre-seed matrix boards
+    await supabase.from('user_accounts').update({ status: 'active' }).eq('email', requestData.recruit_email)
+
+    const { data: recruitMM } = await supabase.from('member_matrix').select('*').eq('email', requestData.recruit_email).maybeSingle()
+    if (!recruitMM) {
+      await supabase.from('member_matrix').insert({
+        email: requestData.recruit_email,
+        balance: 0,
+        downlines_count: 0,
+        has_completed_fly1: false,
+        has_completed_fly2: false,
+      })
+
+      const recruitNodes = [
+        { member_email: requestData.recruit_email, board_type: 'fly1', node_index: 0, name: requestData.recruit_name, email: requestData.recruit_email, is_user: true },
+        { member_email: requestData.recruit_email, board_type: 'fly1', node_index: 1, name: null, email: null },
+        { member_email: requestData.recruit_email, board_type: 'fly1', node_index: 2, name: null, email: null },
+        { member_email: requestData.recruit_email, board_type: 'fly1', node_index: 3, name: null, email: null },
+        { member_email: requestData.recruit_email, board_type: 'fly1', node_index: 4, name: null, email: null },
+        { member_email: requestData.recruit_email, board_type: 'fly1', node_index: 5, name: null, email: null },
+        { member_email: requestData.recruit_email, board_type: 'fly1', node_index: 6, name: null, email: null },
+        { member_email: requestData.recruit_email, board_type: 'fly2', node_index: 0, name: requestData.recruit_name, email: requestData.recruit_email, is_user: true },
+        ...Array.from({ length: 14 }).map((_, i) => ({
+          member_email: requestData.recruit_email,
+          board_type: 'fly2',
+          node_index: i + 1,
+          name: null,
+          email: null,
+          is_user: false,
+        }))
+      ]
+      await supabase.from('matrix_nodes').insert(recruitNodes)
+    }
 
     // Calculate payouts
     const newBalance = state.balance + state.settings.sponsorReward

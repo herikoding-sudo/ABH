@@ -4,11 +4,21 @@ import { useState, useEffect } from 'react'
 import { Package as PackageIcon, Plane, CalendarDays, MessageCircle, Building, Gift, Check, X } from 'lucide-react'
 import { SectionHeading } from './section-heading'
 import { type Package } from '@/lib/data'
-import { getSavedPackages, getSavedPhone, fetchPackagesAsync, fetchSettingsAsync } from '@/lib/data-store'
+import { getSavedPackages, getSavedPhone, fetchPackagesAsync, fetchSettingsAsync, getSession } from '@/lib/data-store'
 
 function PackageCard({ p, phone }: { p: Package; phone: string }) {
   const cleanNumber = phone.replace(/[^0-9]/g, '')
   const waUrl = `https://wa.me/${cleanNumber}?text=Halo%20Amanah%20Berkah%20Haromain,%20saya%2520tertarik%20dengan%20${encodeURIComponent(p.name)}%20harga%20${encodeURIComponent(p.price)}.`
+
+  const handleRegisterClick = (e: React.MouseEvent) => {
+    e.preventDefault()
+    const session = getSession()
+    if (session) {
+      window.location.href = '/dashboard'
+    } else {
+      window.location.href = `/login?tab=register&package=${encodeURIComponent(p.name)}`
+    }
+  }
 
   return (
     <article className="relative flex flex-col rounded-3xl bg-card p-6 ring-1 ring-border transition-all duration-300 hover:-translate-y-2 hover:shadow-xl hover:shadow-primary/10 hover:ring-primary/30">
@@ -79,15 +89,13 @@ function PackageCard({ p, phone }: { p: Package; phone: string }) {
       </div>
 
       <div className="mt-6 border-t border-border pt-4">
-        <a
-          href={waUrl}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="flex w-full items-center justify-center gap-2 rounded-xl bg-primary py-3 text-sm font-semibold text-primary-foreground transition-all hover:bg-primary/90"
+        <button
+          onClick={handleRegisterClick}
+          className="flex w-full items-center justify-center gap-2 rounded-xl bg-primary py-3 text-sm font-semibold text-primary-foreground transition-all hover:bg-primary/90 cursor-pointer"
         >
           <MessageCircle className="size-4" />
           Daftar Sekarang
-        </a>
+        </button>
       </div>
     </article>
   )
