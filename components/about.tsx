@@ -1,7 +1,17 @@
+'use client'
+
+import { useState, useEffect } from 'react'
 import { ThumbsUp, MessageCircle } from 'lucide-react'
-import { WHATSAPP_URL } from '@/lib/data'
+import { getSavedWhatsappUrl, fetchSettingsAsync } from '@/lib/data-store'
 
 export function About() {
+  const [whatsappUrl, setWhatsappUrl] = useState('')
+
+  useEffect(() => {
+    setWhatsappUrl(getSavedWhatsappUrl())
+    fetchSettingsAsync().then(() => setWhatsappUrl(getSavedWhatsappUrl()))
+  }, [])
+
   return (
     <section className="bg-background py-20">
       <div className="mx-auto grid max-w-6xl items-center gap-12 px-4 lg:grid-cols-2">
@@ -21,7 +31,7 @@ export function About() {
           </p>
           <div className="mt-8 flex flex-wrap gap-3">
             <a
-              href={WHATSAPP_URL}
+              href={whatsappUrl || '#'}
               target="_blank"
               rel="noopener noreferrer"
               className="inline-flex items-center gap-2 rounded-xl bg-[#10854c] px-6 py-3 text-sm font-semibold text-white transition-colors hover:bg-[#0c6e3e]"

@@ -1,7 +1,17 @@
+'use client'
+
+import { useState, useEffect } from 'react'
 import { MessageCircle } from 'lucide-react'
-import { WHATSAPP_URL } from '@/lib/data'
+import { getSavedWhatsappUrl, fetchSettingsAsync } from '@/lib/data-store'
 
 export function Hero() {
+  const [whatsappUrl, setWhatsappUrl] = useState('')
+
+  useEffect(() => {
+    setWhatsappUrl(getSavedWhatsappUrl())
+    fetchSettingsAsync().then(() => setWhatsappUrl(getSavedWhatsappUrl()))
+  }, [])
+
   return (
     <section
       id="beranda"
@@ -34,7 +44,7 @@ export function Hero() {
         </p>
         <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
           <a
-            href={WHATSAPP_URL}
+            href={whatsappUrl || '#'}
             target="_blank"
             rel="noopener noreferrer"
             className="inline-flex items-center gap-2 rounded-xl bg-[#10854c] px-7 py-3.5 text-sm font-semibold text-white shadow-lg shadow-black/20 transition-all hover:bg-[#0c6e3e] hover:scale-[1.03]"

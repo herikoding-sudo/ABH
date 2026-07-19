@@ -1,8 +1,12 @@
+'use client'
+
+import { useState, useEffect } from 'react'
 import { MessageCircle, MapPin, Phone, Mail } from 'lucide-react'
 import { Logo } from './logo'
-import { WHATSAPP_URL } from '@/lib/data'
+import { getSavedWhatsappUrl, getSavedPhone, fetchSettingsAsync } from '@/lib/data-store'
 
 function IconInstagram({ className }: { className?: string }) {
+
   return (
     <svg viewBox="0 0 24 24" fill="currentColor" className={className} aria-hidden="true">
       <path d="M12 2.16c3.2 0 3.58.01 4.85.07 1.17.05 1.8.25 2.23.41.56.22.96.48 1.38.9.42.42.68.82.9 1.38.16.42.36 1.06.41 2.23.06 1.27.07 1.65.07 4.85s-.01 3.58-.07 4.85c-.05 1.17-.25 1.8-.41 2.23-.22.56-.48.96-.9 1.38-.42.42-.82.68-1.38.9-.42.16-1.06.36-2.23.41-1.27.06-1.65.07-4.85.07s-3.58-.01-4.85-.07c-1.17-.05-1.8-.25-2.23-.41a3.7 3.7 0 0 1-1.38-.9 3.7 3.7 0 0 1-.9-1.38c-.16-.42-.36-1.06-.41-2.23C2.17 15.58 2.16 15.2 2.16 12s.01-3.58.07-4.85c.05-1.17.25-1.8.41-2.23.22-.56.48-.96.9-1.38.42-.42.82-.68 1.38-.9.42-.16 1.06-.36 2.23-.41C8.42 2.17 8.8 2.16 12 2.16zm0 3.68A6.16 6.16 0 1 0 18.16 12 6.16 6.16 0 0 0 12 5.84zm0 10.16A4 4 0 1 1 16 12a4 4 0 0 1-4 4zm6.4-10.4a1.44 1.44 0 1 0 1.44 1.44 1.44 1.44 0 0 0-1.44-1.44z" />
@@ -27,6 +31,18 @@ function IconYoutube({ className }: { className?: string }) {
 }
 
 export function SiteFooter() {
+  const [whatsappUrl, setWhatsappUrl] = useState('')
+  const [phone, setPhone] = useState('')
+
+  useEffect(() => {
+    setWhatsappUrl(getSavedWhatsappUrl())
+    setPhone(getSavedPhone())
+    fetchSettingsAsync().then((settings) => {
+      setWhatsappUrl(getSavedWhatsappUrl())
+      setPhone(settings.phone)
+    })
+  }, [])
+
   return (
     <footer id="footer">
       {/* CTA banner */}
@@ -46,7 +62,7 @@ export function SiteFooter() {
             memilih paket terbaik sesuai kebutuhan Anda.
           </p>
           <a
-            href={WHATSAPP_URL}
+            href={whatsappUrl || '#'}
             target="_blank"
             rel="noopener noreferrer"
             className="mt-8 inline-flex items-center gap-2 rounded-xl bg-[#10854c] px-7 py-3.5 text-sm font-semibold text-white shadow-lg transition-all hover:bg-[#0c6e3e] hover:scale-[1.03]"
@@ -120,7 +136,7 @@ export function SiteFooter() {
               </li>
               <li className="flex gap-3">
                 <Phone className="size-4 shrink-0 text-primary" />
-                0895-1844-3354
+                {phone || '0895-1844-3354'}
               </li>
               <li className="flex gap-3">
                 <Mail className="size-4 shrink-0 text-primary" />
