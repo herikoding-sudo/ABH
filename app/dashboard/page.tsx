@@ -68,6 +68,7 @@ import {
   Eye,
   EyeOff,
   Key,
+  Copy,
   Check,
   X,
   Database,
@@ -977,6 +978,39 @@ export default function DashboardPage() {
                         <p className="mt-2 text-3xl font-extrabold text-primary">
                           {matrixState.hasCompletedFly1 ? 'Fly II (Utama)' : 'Fly I (Dasar)'}
                         </p>
+                      </div>
+                    </div>
+
+                    {/* Referral Link Card */}
+                    <div className="rounded-3xl bg-gradient-to-br from-primary/5 via-white to-white p-6 md:p-8 border border-slate-200 shadow-sm space-y-4">
+                      <div className="flex items-center gap-3">
+                        <div className="rounded-2xl bg-primary/10 p-2.5 text-primary">
+                          <Globe className="size-6" />
+                        </div>
+                        <div>
+                          <h3 className="font-bold text-slate-900">Link Referral Kemitraan Anda</h3>
+                          <p className="text-slate-500 text-xs mt-0.5">Bagikan link ini ke calon mitra baru Anda untuk otomatis diposisikan di bawah Anda.</p>
+                        </div>
+                      </div>
+
+                      <div className="flex gap-2 max-w-2xl">
+                        <input
+                          type="text"
+                          readOnly
+                          value={typeof window !== 'undefined' ? `${window.location.origin}/login?ref=${currentUser.email}` : ''}
+                          className="flex-1 rounded-xl bg-slate-50/50 py-3 px-4 text-xs font-mono text-slate-700 ring-1 ring-slate-200 select-all focus:outline-none"
+                        />
+                        <button
+                          onClick={() => {
+                            const url = `${window.location.origin}/login?ref=${currentUser.email}`
+                            navigator.clipboard.writeText(url)
+                            showToast('Link referral disalin ke clipboard!')
+                          }}
+                          className="flex items-center gap-1.5 rounded-xl bg-primary px-4 py-3 text-xs font-bold text-primary-foreground shadow-md hover:bg-primary/95 transition-all shrink-0"
+                        >
+                          <Copy className="size-4" />
+                          Salin
+                        </button>
                       </div>
                     </div>
 

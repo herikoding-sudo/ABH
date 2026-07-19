@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { Logo } from '@/components/logo'
 import { getUsersAsync, registerUserAsync, setSession, getSavedPackages } from '@/lib/data-store'
-import { Lock, Mail, Loader2, ArrowLeft, User as UserIcon, FileImage, ShieldAlert, CheckCircle2, Package as PackageIcon } from 'lucide-react'
+import { Lock, Mail, Loader2, ArrowLeft, User as UserIcon, FileImage, ShieldAlert, CheckCircle2, Package as PackageIcon, Gift } from 'lucide-react'
 import { type Package } from '@/lib/data'
 
 export default function LoginPage() {
@@ -22,6 +22,8 @@ export default function LoginPage() {
   const [selectedPkg, setSelectedPkg] = useState('')
   const [mockFileName, setMockFileName] = useState('Pilih struk transfer komitmen...')
 
+  const [refSponsor, setRefSponsor] = useState('')
+
   const [packages, setPackages] = useState<Package[]>([])
   const [error, setError] = useState('')
   const [successMessage, setSuccessMessage] = useState('')
@@ -32,8 +34,13 @@ export default function LoginPage() {
     const params = new URLSearchParams(window.location.search)
     const tabParam = params.get('tab')
     const pkgParam = params.get('package')
+    const referral = params.get('ref')
     
     if (tabParam === 'register') {
+      setActiveTab('register')
+    }
+    if (referral) {
+      setRefSponsor(referral)
       setActiveTab('register')
     }
     if (pkgParam) {
@@ -93,7 +100,7 @@ export default function LoginPage() {
     setLoading(true)
 
     try {
-      const res = await registerUserAsync(regName, regEmail, regPassword)
+      const res = await registerUserAsync(regName, regEmail, regPassword, refSponsor)
       if (res.success) {
         setSuccessMessage(res.message)
         // Clear fields
@@ -257,6 +264,12 @@ export default function LoginPage() {
         {/* REGISTRATION FORM */}
         {activeTab === 'register' && (
           <form onSubmit={handleRegister} className="mt-6 space-y-4">
+            {refSponsor && (
+              <div className="rounded-2xl bg-amber-50 p-4 text-xs font-semibold text-amber-800 ring-1 ring-amber-200 flex items-center gap-2">
+                <Gift className="size-4 shrink-0 text-amber-600 animate-pulse" />
+                <span>Sponsor Kemitraan: <strong className="font-bold underline text-amber-950">{refSponsor}</strong></span>
+              </div>
+            )}
             <div>
               <label className="text-xs font-semibold uppercase tracking-wider text-slate-500">Nama Lengkap</label>
               <div className="relative mt-2">

@@ -98,7 +98,7 @@ export async function getUsersAsync(): Promise<DynamicUser[]> {
   return combined
 }
 
-export async function registerUserAsync(name: string, email: string, password: string): Promise<{ success: boolean; message: string }> {
+export async function registerUserAsync(name: string, email: string, password: string, sponsorEmail?: string): Promise<{ success: boolean; message: string }> {
   const allUsers = await getUsersAsync()
   const exists = allUsers.some((u) => u.email.toLowerCase() === email.toLowerCase())
   if (exists) {
@@ -138,7 +138,7 @@ export async function registerUserAsync(name: string, email: string, password: s
   // 3. Initialize and place member in the matrix tree dynamically
   try {
     const { initializeAndPlaceMemberAsync } = await import('./matrix-store')
-    const placementRes = await initializeAndPlaceMemberAsync(name, email, 'member@abh.com')
+    const placementRes = await initializeAndPlaceMemberAsync(name, email, sponsorEmail || 'member@abh.com')
     if (!placementRes.success) {
       return { success: false, message: placementRes.message }
     }
