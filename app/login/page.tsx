@@ -67,7 +67,15 @@ export default function LoginPage() {
           role: matched.role,
           name: matched.name,
         })
-        router.push('/dashboard')
+        
+        // Preserve redirect parameters for seamless booking
+        const params = new URLSearchParams(window.location.search)
+        const pkgParam = params.get('package')
+        if (pkgParam) {
+          router.push(`/dashboard?mode=booking&package=${encodeURIComponent(pkgParam)}`)
+        } else {
+          router.push('/dashboard')
+        }
       } else {
         setError('Email atau password salah.')
         setLoading(false)
@@ -92,7 +100,6 @@ export default function LoginPage() {
         setRegName('')
         setRegEmail('')
         setRegPassword('')
-        setMockFileName('Pilih struk transfer komitmen...')
       } else {
         setError(res.message)
       }
@@ -295,47 +302,7 @@ export default function LoginPage() {
               </div>
             </div>
 
-            <div>
-              <label className="text-xs font-semibold uppercase tracking-wider text-slate-500">Pilih Paket Umroh</label>
-              <div className="relative mt-2">
-                <PackageIcon className="absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-slate-400" />
-                <select
-                  value={selectedPkg}
-                  onChange={(e) => setSelectedPkg(e.target.value)}
-                  required
-                  className="w-full rounded-2xl bg-slate-50/50 py-3 pl-11 pr-4 text-sm text-slate-900 ring-1 ring-slate-200 focus:outline-none focus:ring-primary focus:bg-white transition-all appearance-none"
-                >
-                  <option value="">-- Pilih Paket Umroh --</option>
-                  {packages.map((pkg) => (
-                    <option key={pkg.name} value={pkg.name}>
-                      {pkg.name} ({pkg.price})
-                    </option>
-                  ))}
-                </select>
-              </div>
-            </div>
-
-            <div>
-              <label className="text-xs font-semibold uppercase tracking-wider text-slate-500">Upload Bukti Transfer Setoran Awal (Rp 2.500.000)</label>
-              <div className="relative mt-2">
-                <input
-                  type="file"
-                  accept="image/*"
-                  onChange={(e) => {
-                    if (e.target.files && e.target.files[0]) {
-                      setMockFileName(e.target.files[0].name)
-                    }
-                  }}
-                  required
-                  className="absolute inset-0 size-full cursor-pointer opacity-0"
-                />
-                <div className="flex items-center gap-2 rounded-2xl bg-slate-50/50 py-3 px-4 text-sm text-slate-655 ring-1 ring-slate-200">
-                  <FileImage className="size-4 shrink-0 text-slate-400" />
-                  <span className="truncate">{mockFileName}</span>
-                </div>
-              </div>
-              <p className="mt-1.5 text-[10px] text-slate-500">Transfer BSI a/n **ABH UMROH** (Nomor Rekening: 123-456-7890).</p>
-            </div>
+             {/* Registrasi langsung aktif tanpa pilih paket dan upload struk */}
 
             <button
               type="submit"

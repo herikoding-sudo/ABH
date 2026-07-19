@@ -106,7 +106,7 @@ export async function registerUserAsync(name: string, email: string, password: s
     password,
     role: 'member' as Role,
     name,
-    status: 'pending',
+    status: 'active',
   }
 
   // 1. Save to local storage
@@ -122,7 +122,7 @@ export async function registerUserAsync(name: string, email: string, password: s
         password,
         role: 'member',
         name,
-        status: 'pending',
+        status: 'active',
       })
       if (error) throw error
     } catch (err) {
@@ -131,45 +131,20 @@ export async function registerUserAsync(name: string, email: string, password: s
     }
   }
 
-  // 3. Create a pending deposit request under the default sponsor (member@abh.com)
-  // This automatically routes the registration to the Admin panel for approval
-  const depositAmount = 2500000 // default initial deposit
-  if (isSupabaseConfigured && supabase) {
-    try {
-      await supabase.from('deposit_requests').insert({
-        sponsor_email: 'member@abh.com',
-        recruit_name: name,
-        recruit_email: email,
-        amount: depositAmount,
-        status: 'pending',
-        proof_image: '/images/proof-mock.png',
-        date_text: new Date().toLocaleDateString('id-ID'),
-      })
-    } catch (err) {
-      console.error('Error creating deposit request for new user in Supabase:', err)
+  // 3. Initialize and place member in the matrix tree dynamically
+  try {
+    const { initializeAndPlaceMemberAsync } = await import('./matrix-store')
+    const placementRes = await initializeAndPlaceMemberAsync(name, email, 'member@abh.com')
+    if (!placementRes.success) {
+      return { success: false, message: placementRes.message }
     }
-  } else {
-    // Add locally to matrix-store's deposit requests
-    const matrixSaved = localStorage.getItem('abh_matrix_state')
-    if (matrixSaved) {
-      const matrixState = JSON.parse(matrixSaved)
-      matrixState.depositRequests.unshift({
-        id: `req_${Date.now()}`,
-        date: new Date().toLocaleDateString('id-ID'),
-        sponsorEmail: 'member@abh.com',
-        recruitName: name,
-        recruitEmail: email,
-        amount: depositAmount,
-        status: 'pending',
-        proofImage: '/images/proof-mock.png',
-      })
-      localStorage.setItem('abh_matrix_state', JSON.stringify(matrixState))
-    }
+  } catch (err) {
+    console.error('Error placing member during sign up:', err)
   }
 
   return {
     success: true,
-    message: 'Registrasi berhasil! Akun Anda sedang ditangguhkan menunggu persetujuan Setoran Awal Rp 2.500.000 oleh Admin.',
+    message: 'Pendaftaran berhasil! Silakan langsung masuk ke tab Login untuk masuk ke akun Anda.',
   }
 }
 
