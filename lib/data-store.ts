@@ -473,3 +473,32 @@ export async function updateUserPasswordAsync(email: string, newPassword: string
 
   return { success: true, message: 'Password berhasil diperbarui!' }
 }
+
+export async function deleteUserAsync(email: string): Promise<{ success: boolean; message: string }> {
+  // 1. Delete from default mock accounts locally if they match
+  const idx = MOCK_USERS.findIndex((u) => u.email.toLowerCase() === email.toLowerCase())
+  if (idx !== -1) {
+    MOCK_USERS.splice(idx, 1)
+  }
+
+  // 2. Delete from local storage
+  const localUsers = getSavedLocalUsers()
+  const filtered = localUsers.filter((u) => u.email.toLowerCase() !== email.toLowerCase())
+  saveLocalUsers(filtered)
+
+  // 3. Delete from Supabase if configured
+  if (isSupabaseConfigured && supabase) {
+    try {
+      const { error } = await supabase
+        .from('user_accounts')
+        .delete()
+        .eq('email', email)
+      if (error) throw error
+    } catch (err) {
+      console.error('Error deleting user from Supabase:', err)
+      return { success: false, message: 'Gagal menghapus user dari database.' }
+    }
+  }
+
+  return { success: true, message: 'User berhasil dihapus!' }
+}

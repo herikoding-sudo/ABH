@@ -22,6 +22,7 @@ import {
   fetchSettingsAsync,
   saveSettingsAsync,
   updateUserPasswordAsync,
+  deleteUserAsync,
 } from '@/lib/data-store'
 import {
   getMatrixState,
@@ -71,6 +72,7 @@ import {
   Copy,
   Check,
   X,
+  Trash2,
   Database,
   ShoppingBag,
   Info,
@@ -2391,16 +2393,39 @@ export default function DashboardPage() {
                               )}
                             </td>
                             <td className="px-4 py-4.5 text-center">
-                              <button
-                                onClick={() => {
-                                  setEditingUser(user)
-                                  setNewPasswordVal(user.password || '')
-                                }}
-                                className="inline-flex items-center gap-1.5 rounded-xl bg-primary/10 px-3 py-1.5 text-xs font-bold text-primary hover:bg-primary/20 transition-all"
-                              >
-                                <Key className="size-3.5" />
-                                Ganti Password
-                              </button>
+                              <div className="flex items-center justify-center gap-2">
+                                <button
+                                  onClick={() => {
+                                    setEditingUser(user)
+                                    setNewPasswordVal(user.password || '')
+                                  }}
+                                  className="inline-flex items-center gap-1.5 rounded-xl bg-primary/10 px-3 py-1.5 text-xs font-bold text-primary hover:bg-primary/20 transition-all"
+                                >
+                                  <Key className="size-3.5" />
+                                  Ganti Password
+                                </button>
+
+                                {user.email.toLowerCase() !== currentUser.email.toLowerCase() && (
+                                  <button
+                                    onClick={async () => {
+                                      if (window.confirm(`Apakah Anda yakin ingin menghapus pengguna "${user.name}" (${user.email}) secara permanen?`)) {
+                                        const res = await deleteUserAsync(user.email)
+                                        if (res.success) {
+                                          showToast('Pengguna berhasil dihapus!')
+                                          const freshUsersList = await getUsersAsync()
+                                          setSystemUsers(freshUsersList)
+                                        } else {
+                                          showToast(res.message)
+                                        }
+                                      }
+                                    }}
+                                    className="inline-flex items-center gap-1.5 rounded-xl bg-rose-50 px-3 py-1.5 text-xs font-bold text-rose-600 hover:bg-rose-100 hover:text-rose-700 transition-all border border-rose-100"
+                                  >
+                                    <Trash2 className="size-3.5" />
+                                    Hapus
+                                  </button>
+                                )}
+                              </div>
                             </td>
                           </tr>
                         ))}

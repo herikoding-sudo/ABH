@@ -110,8 +110,7 @@ export function getActiveUserEmail(): string {
   return 'member@abh.com'
 }
 
-export function getMatrixState(): MatrixState {
-  const email = getActiveUserEmail()
+export function getMatrixStateForEmail(email: string): MatrixState {
   if (typeof window === 'undefined') {
     return {
       balance: 0,
@@ -172,10 +171,21 @@ export function getMatrixState(): MatrixState {
   return initialState
 }
 
+export function getMatrixState(): MatrixState {
+  const email = getActiveUserEmail()
+  return getMatrixStateForEmail(email)
+}
+
+export function saveMatrixStateForEmail(email: string, state: MatrixState) {
+  if (typeof window !== 'undefined') {
+    localStorage.setItem(`abh_matrix_state_${email}`, JSON.stringify(state))
+  }
+}
+
 export function saveMatrixState(state: MatrixState) {
   if (typeof window !== 'undefined') {
     const email = getActiveUserEmail()
-    localStorage.setItem(`abh_matrix_state_${email}`, JSON.stringify(state))
+    saveMatrixStateForEmail(email, state)
   }
 }
 
@@ -872,7 +882,7 @@ export async function rejectPackageBookingAsync(bookingId: string): Promise<{ su
 export async function initializeAndPlaceMemberAsync(recruitName: string, recruitEmail: string, sponsorEmail: string = 'member@abh.com'): Promise<{ success: boolean; message: string }> {
   // 1. Local fallback
   if (!isSupabaseConfigured || !supabase) {
-    const state = getMatrixState()
+    const state = getMatrixStateForEmail(sponsorEmail)
     
     // Create approved deposit request for record
     const newReq: DepositRequest = {
@@ -942,13 +952,13 @@ export async function initializeAndPlaceMemberAsync(recruitName: string, recruit
       }
     }
     
-    saveMatrixState(state)
+    saveMatrixStateForEmail(sponsorEmail, state)
     return { success: true, message: 'Registrasi berhasil!' }
   }
 
   // 2. Real Supabase Implementation
   try {
-    const state = await fetchMatrixStateAsync()
+    const state = await fetchMatrixStateAsync(sponsorEmail)
     const depositAmount = state.settings.depositAmount
 
     // Create approved deposit request for record
