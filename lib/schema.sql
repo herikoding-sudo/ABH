@@ -166,7 +166,7 @@ INSERT INTO transactions (member_email, date_text, tx_type, amount, description)
 VALUES ('member@abh.com', '19/07/2026', 'deposit', -2500000, 'Setoran Awal Registrasi Member Umroh');
 
 
--- 9. DEPOSIT REQUESTS
+-- 9. DEPOSIT REQUESTS (Matrix downlines)
 CREATE TABLE IF NOT EXISTS deposit_requests (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   sponsor_email TEXT NOT NULL,
@@ -182,3 +182,23 @@ CREATE TABLE IF NOT EXISTS deposit_requests (
 -- Seed demo deposit request
 INSERT INTO deposit_requests (sponsor_email, recruit_name, recruit_email, amount, status, proof_image, date_text)
 VALUES ('member@abh.com', 'Gita Hermawan', 'gita@email.com', 2500000, 'pending', '/images/proof-mock.png', '19/07/2026');
+
+
+-- 10. PACKAGE BOOKINGS (Regular package purchases)
+CREATE TABLE IF NOT EXISTS package_bookings (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  member_email TEXT NOT NULL,
+  package_name TEXT NOT NULL,
+  schedule_date TEXT NOT NULL,
+  passenger_name TEXT NOT NULL,
+  passenger_phone TEXT NOT NULL,
+  amount NUMERIC NOT NULL,
+  status TEXT NOT NULL DEFAULT 'pending', -- 'pending', 'approved', 'rejected'
+  proof_image TEXT,
+  date_text TEXT NOT NULL,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now())
+);
+
+-- Seed demo package booking
+INSERT INTO package_bookings (member_email, package_name, schedule_date, passenger_name, passenger_phone, amount, status, proof_image, date_text)
+VALUES ('member@abh.com', 'Paket VIP 9 D', '25 Sep 2026', 'Ahmad (Member)', '0812-3456-7890', 37500000, 'pending', '/images/proof-mock.png', '19/07/2026');

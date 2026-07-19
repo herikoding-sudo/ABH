@@ -29,8 +29,13 @@ import {
   approveDepositRequestAsync,
   rejectDepositRequestAsync,
   resetMatrixSimulationAsync,
+  fetchPackageBookingsAsync,
+  submitPackageBookingAsync,
+  approvePackageBookingAsync,
+  rejectPackageBookingAsync,
   type MatrixState,
   type DepositRequest,
+  type PackageBooking,
 } from '@/lib/matrix-store'
 import { isSupabaseConfigured } from '@/lib/supabase'
 import { MatrixTree } from '@/components/matrix-tree'
@@ -61,6 +66,8 @@ import {
   Check,
   X,
   Database,
+  ShoppingBag,
+  Info,
 } from 'lucide-react'
 import { type Package, type Schedule, type Service } from '@/lib/data'
 
@@ -76,6 +83,10 @@ export default function DashboardPage() {
   
   const [isSidebarOpen, setIsSidebarOpen] = useState(true)
 
+  // Sub-tabs
+  const [bookingSubTab, setBookingSubTab] = useState<'matrix' | 'personal'>('matrix')
+  const [verifySubTab, setVerifySubTab] = useState<'matrix' | 'package'>('matrix')
+
   // CMS Data States (Admin only)
   const [packagesList, setPackagesList] = useState<Package[]>([])
   const [schedulesList, setSchedulesList] = useState<Schedule[]>([])
@@ -87,6 +98,14 @@ export default function DashboardPage() {
   const [newRecruitName, setNewRecruitName] = useState('')
   const [newRecruitEmail, setNewRecruitEmail] = useState('')
   const [mockFileName, setMockFileName] = useState('Pilih bukti transfer (struk)...')
+
+  // Personal Package Booking Form States
+  const [bookPassengerName, setBookPassengerName] = useState('')
+  const [bookPassengerPhone, setBookPassengerPhone] = useState('')
+  const [bookSelectedPkg, setBookSelectedPkg] = useState('')
+  const [bookSelectedSch, setBookSelectedSch] = useState('')
+  const [bookFileName, setBookFileName] = useState('Pilih bukti transfer (struk)...')
+  const [packageBookings, setPackageBookings] = useState<PackageBooking[]>([])
 
   // Matrix Settings State (Superadmin editable)
   const [depositAmount, setDepositAmount] = useState(2500000)
@@ -106,7 +125,7 @@ export default function DashboardPage() {
   const [splitModalData, setSplitModalData] = useState<{ isOpen: boolean; message: string }>({ isOpen: false, message: '' })
 
   // Receipt Modal State
-  const [selectedReceipt, setSelectedReceipt] = useState<DepositRequest | null>(null)
+  const [selectedReceipt, setSelectedReceipt] = useState<any>(null)
   const [showReceiptModal, setShowReceiptModal] = useState(false)
 
   const loadData = () => {
@@ -117,6 +136,20 @@ export default function DashboardPage() {
     }
     
     setCurrentUser(session)
+    setBookPassengerName(session.name)
+
+    // Parse URL params for preselection
+    const params = new URLSearchParams(window.location.search)
+    const modeParam = params.get('mode')
+    const pkgParam = params.get('package')
+    
+    if (modeParam === 'booking') {
+      setMemberTab('register')
+      setBookingSubTab('personal')
+    }
+    if (pkgParam) {
+      setBookSelectedPkg(pkgParam)
+    }
 
     // 1. Load client-side caches instantly (synchronous)
     const mState = getMatrixState()
@@ -126,11 +159,16 @@ export default function DashboardPage() {
     setFly1Reward(mState.settings.fly1Reward)
     setFly2Reward(mState.settings.fly2Reward)
 
-    if (session.role !== 'member') {
-      setPackagesList(getSavedPackages())
-      setSchedulesList(getSavedSchedules())
-      setServicesList(getSavedServices())
-      setPhone(getSavedPhone())
+    setPackagesList(getSavedPackages())
+    setSchedulesList(getSavedSchedules())
+    setServicesList(getSavedServices())
+    setPhone(getSavedPhone())
+
+    // Load package bookings
+    if (session.role === 'member') {
+      setPackageBookings(fetchPackageBookingsAsync(session.email) as any || [])
+    } else {
+      setPackageBookings(fetchPackageBookingsAsync() as any || [])
     }
 
     // 2. Fetch fresh data from Supabase asynchronously (SWR Revalidation)
@@ -142,11 +180,16 @@ export default function DashboardPage() {
       setFly2Reward(freshState.settings.fly2Reward)
     })
 
-    if (session.role !== 'member') {
-      fetchPackagesAsync().then((list) => setPackagesList(list))
-      fetchSchedulesAsync().then((list) => setSchedulesList(list))
-      fetchServicesAsync().then((list) => setServicesList(list))
-      fetchSettingsAsync().then((settings) => setPhone(settings.phone))
+    fetchPackagesAsync().then((list) => setPackagesList(list))
+    fetchSchedulesAsync().then((list) => setSchedulesList(list))
+    fetchServicesAsync().then((list) => setServicesList(list))
+    fetchSettingsAsync().then((settings) => setPhone(settings.phone))
+
+    // Revalidate package bookings
+    if (session.role === 'member') {
+      fetchPackageBookingsAsync(session.email).then((list) => setPackageBookings(list))
+    } else {
+      fetchPackageBookingsAsync().then((list) => setPackageBookings(list))
     }
   }
 
@@ -236,6 +279,37 @@ export default function DashboardPage() {
     }
   }
 
+  // Member Personal Package Booking Submission (Async Supabase)
+  const handleBookPackage = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!currentUser || !bookSelectedPkg || !bookSelectedSch || !bookPassengerName || !bookPassengerPhone) return
+
+    // Find price of chosen package
+    const matched = packagesList.find((p) => p.name === bookSelectedPkg)
+    const priceStr = matched ? matched.price : '35 Juta'
+    const priceNumber = parseFloat(priceStr.replace(/[^0-9.]/g, '')) * 1000000 || 35000000
+
+    const res = await submitPackageBookingAsync(
+      bookSelectedPkg,
+      bookSelectedSch,
+      bookPassengerName,
+      bookPassengerPhone,
+      priceNumber,
+      '/images/proof-mock.png',
+      currentUser.email
+    )
+
+    if (res) {
+      setBookPassengerPhone('')
+      setBookFileName('Pilih bukti transfer (struk)...')
+      showToast('Pesanan Paket Berhasil Diajukan! Menunggu persetujuan Admin.')
+      
+      // Reload bookings
+      const list = await fetchPackageBookingsAsync(currentUser.email)
+      setPackageBookings(list)
+    }
+  }
+
   // Admin approve/reject request (Async Supabase)
   const handleApproveRequest = async (requestId: string) => {
     const res = await approveDepositRequestAsync(requestId)
@@ -256,6 +330,25 @@ export default function DashboardPage() {
     setMatrixState(freshState)
     if (res.success) {
       showToast(res.message)
+    }
+  }
+
+  // Admin approve/reject package booking (Async Supabase)
+  const handleApproveBooking = async (bookingId: string) => {
+    const res = await approvePackageBookingAsync(bookingId)
+    if (res.success) {
+      showToast(res.message)
+      const list = await fetchPackageBookingsAsync(currentUser?.role === 'member' ? currentUser?.email : undefined)
+      setPackageBookings(list)
+    }
+  }
+
+  const handleRejectBooking = async (bookingId: string) => {
+    const res = await rejectPackageBookingAsync(bookingId)
+    if (res.success) {
+      showToast(res.message)
+      const list = await fetchPackageBookingsAsync(currentUser?.role === 'member' ? currentUser?.email : undefined)
+      setPackageBookings(list)
     }
   }
 
@@ -347,9 +440,9 @@ export default function DashboardPage() {
             <div className="mt-4 rounded-2xl bg-slate-50 p-5 border border-slate-200 text-left space-y-3 font-mono text-[11px] text-slate-600 shadow-inner">
               <div className="text-center font-bold text-slate-800 text-xs border-b border-dashed border-slate-300 pb-2">STRUK TRANSFER M-BANKING</div>
               <div className="flex justify-between"><span>TANGGAL:</span> <span className="font-semibold">{selectedReceipt.date}</span></div>
-              <div className="flex justify-between"><span>PENGIRIM:</span> <span className="font-semibold truncate max-w-[160px]">{selectedReceipt.sponsorEmail}</span></div>
+              <div className="flex justify-between"><span>PENGIRIM:</span> <span className="font-semibold truncate max-w-[160px]">{selectedReceipt.sponsorEmail || selectedReceipt.memberEmail}</span></div>
               <div className="flex justify-between"><span>PENERIMA:</span> <span className="font-bold text-slate-700">ABH UMROH (BSI)</span></div>
-              <div className="flex justify-between"><span>BERITA/MITRA:</span> <span className="font-semibold text-slate-700">{selectedReceipt.recruitName}</span></div>
+              <div className="flex justify-between"><span>BERITA/MITRA:</span> <span className="font-semibold text-slate-700">{selectedReceipt.recruitName || selectedReceipt.passengerName}</span></div>
               <div className="flex justify-between"><span>JUMLAH:</span> <span className="font-extrabold text-emerald-600 text-xs">Rp {selectedReceipt.amount.toLocaleString('id-ID')}</span></div>
               <div className="flex justify-between"><span>STATUS:</span> <span className="bg-emerald-100 text-emerald-700 font-bold px-1.5 py-0.5 rounded text-[9px]">TRANSFER BERHASIL</span></div>
             </div>
@@ -427,6 +520,7 @@ export default function DashboardPage() {
                 <button
                   onClick={() => {
                     setMemberTab('register')
+                    setBookingSubTab('matrix')
                     if (window.innerWidth < 768) setIsSidebarOpen(false)
                   }}
                   className={`flex items-center gap-3 rounded-xl px-4 py-3 text-sm font-bold transition-all ${
@@ -436,7 +530,7 @@ export default function DashboardPage() {
                   }`}
                 >
                   <UserPlus className="size-4.5" />
-                  Daftar Kemitraan
+                  Daftar &amp; Booking Paket
                 </button>
 
                 <button
@@ -530,9 +624,10 @@ export default function DashboardPage() {
                 >
                   <FileText className="size-4.5" />
                   Verifikasi Setoran
-                  {matrixState && matrixState.depositRequests.filter((r) => r.status === 'pending').length > 0 && (
+                  {(matrixState && matrixState.depositRequests.filter((r) => r.status === 'pending').length > 0 ||
+                    packageBookings.filter((b) => b.status === 'pending').length > 0) && (
                     <span className="absolute right-3 top-1/2 -translate-y-1/2 flex size-5 items-center justify-center rounded-full bg-rose-500 text-[10px] font-bold text-white">
-                      {matrixState.depositRequests.filter((r) => r.status === 'pending').length}
+                      {matrixState!.depositRequests.filter((r) => r.status === 'pending').length + packageBookings.filter((b) => b.status === 'pending').length}
                     </span>
                   )}
                 </button>
@@ -622,7 +717,7 @@ export default function DashboardPage() {
                     ? 'bg-rose-100 text-rose-700 border border-rose-200'
                     : currentUser.role === 'admin'
                     ? 'bg-sky-100 text-sky-700 border border-sky-200'
-                    : 'bg-slate-100 text-slate-600 border border-slate-200'
+                    : 'bg-slate-100 text-slate-650 border border-slate-200'
                 }`}
               >
                 {currentUser.role}
@@ -643,7 +738,7 @@ export default function DashboardPage() {
         <main className="flex-1 overflow-y-auto p-6 md:p-8 max-w-5xl w-full mx-auto">
           {isMember ? (
             /* =========================================================================
-               MEMBER MATRIX SYSTEM VIEWS
+               MEMBER MATRIX SYSTEM & BOOKINGS VIEWS
                ========================================================================= */
             matrixState && (
               <div className="space-y-6">
@@ -688,6 +783,57 @@ export default function DashboardPage() {
                         </p>
                       </div>
                     </div>
+
+                    {/* Booking Status Card */}
+                    {packageBookings.length > 0 && (
+                      <div className="rounded-3xl bg-white p-6 border border-slate-200 shadow-sm space-y-4">
+                        <h3 className="text-slate-850 font-bold flex items-center gap-2">
+                          <ShoppingBag className="size-5 text-primary" /> Pesanan Paket Umroh Saya
+                        </h3>
+                        <div className="overflow-x-auto">
+                          <table className="w-full border-collapse text-left text-xs text-slate-650">
+                            <thead className="bg-slate-50 border-b border-slate-200 font-bold">
+                              <tr>
+                                <th className="px-4 py-2.5">Tanggal</th>
+                                <th className="px-4 py-2.5">Nama Jamaah</th>
+                                <th className="px-4 py-2.5">Paket Umroh</th>
+                                <th className="px-4 py-2.5">Jadwal</th>
+                                <th className="px-4 py-2.5 text-right">Harga</th>
+                                <th className="px-4 py-2.5 text-center">Status</th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-slate-100">
+                              {packageBookings.map((b) => (
+                                <tr key={b.id}>
+                                  <td className="px-4 py-3">{b.date}</td>
+                                  <td className="px-4 py-3 font-semibold text-slate-800">{b.passengerName}</td>
+                                  <td className="px-4 py-3 text-slate-500">{b.packageName}</td>
+                                  <td className="px-4 py-3">{b.scheduleDate}</td>
+                                  <td className="px-4 py-3 text-right font-bold text-slate-700">Rp {b.amount.toLocaleString('id-ID')}</td>
+                                  <td className="px-4 py-3 text-center">
+                                    <span
+                                      className={`rounded-full px-2.5 py-0.5 text-[9px] font-bold uppercase tracking-wider ${
+                                        b.status === 'approved'
+                                          ? 'bg-emerald-100 text-emerald-700 border border-emerald-250'
+                                          : b.status === 'rejected'
+                                          ? 'bg-rose-100 text-rose-700 border border-rose-250'
+                                          : 'bg-amber-100 text-amber-700 border border-amber-250 animate-pulse'
+                                      }`}
+                                    >
+                                      {b.status === 'approved'
+                                        ? 'Terkonfirmasi'
+                                        : b.status === 'rejected'
+                                        ? 'Ditolak'
+                                        : 'Menunggu Review'}
+                                    </span>
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
+                    )}
 
                     {/* Matrix Parameter descriptions */}
                     <div className="grid gap-6 md:grid-cols-2">
@@ -792,51 +938,176 @@ export default function DashboardPage() {
                   </div>
                 )}
 
-                {/* MEMBER TAB 4: REGISTER DOWNLINE FORM & REQUESTS */}
+                {/* MEMBER TAB 4: REGISTER DOWNLINE OR ORDER PACKAGE FOR SELF */}
                 {memberTab === 'register' && (
                   <div className="space-y-6">
-                    <div className="rounded-3xl bg-white p-6 md:p-8 border border-slate-200 shadow-sm space-y-6">
-                      <div>
-                        <h3 className="text-lg font-bold text-slate-900 border-b border-slate-100 pb-3">Registrasi Kemitraan Baru</h3>
-                        <p className="text-sm text-slate-500 mt-2">Daftarkan mitra/downline baru di bawah sponsor Anda. Unggah Bukti Transfer setoran komitmen untuk diajukan ke Admin.</p>
-                      </div>
+                    {/* Sub-tabs switch */}
+                    <div className="flex rounded-xl bg-slate-100 p-1 border border-slate-200 max-w-md">
+                      <button
+                        onClick={() => setBookingSubTab('matrix')}
+                        className={`flex-1 rounded-lg py-2 text-xs font-bold transition-all ${
+                          bookingSubTab === 'matrix' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-600 hover:text-slate-800'
+                        }`}
+                      >
+                        Pendaftaran Mitra (Matriks)
+                      </button>
+                      <button
+                        onClick={() => setBookingSubTab('personal')}
+                        className={`flex-1 rounded-lg py-2 text-xs font-bold transition-all ${
+                          bookingSubTab === 'personal' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-600 hover:text-slate-800'
+                        }`}
+                      >
+                        Booking Paket Pribadi
+                      </button>
+                    </div>
 
-                      <form onSubmit={handleRegisterRecruit} className="space-y-4 max-w-xl">
-                        <div className="grid gap-4 sm:grid-cols-2">
-                          <div>
-                            <label className="text-xs font-bold uppercase tracking-wider text-slate-500">Nama Lengkap Mitra</label>
-                            <input
-                              type="text"
-                              required
-                              value={newRecruitName}
-                              onChange={(e) => setNewRecruitName(e.target.value)}
-                              placeholder="Contoh: Rian Hidayat"
-                              className="mt-2 w-full rounded-xl bg-slate-50/50 py-3 px-4 text-sm text-slate-900 placeholder-slate-400 ring-1 ring-slate-200 focus:outline-none focus:ring-primary focus:bg-white transition-all"
-                            />
-                          </div>
-
-                          <div>
-                            <label className="text-xs font-bold uppercase tracking-wider text-slate-500">Alamat Email Mitra</label>
-                            <input
-                              type="email"
-                              required
-                              value={newRecruitEmail}
-                              onChange={(e) => setNewRecruitEmail(e.target.value)}
-                              placeholder="Contoh: rian@email.com"
-                              className="mt-2 w-full rounded-xl bg-slate-50/50 py-3 px-4 text-sm text-slate-900 placeholder-slate-400 ring-1 ring-slate-200 focus:outline-none focus:ring-primary focus:bg-white transition-all"
-                            />
-                          </div>
+                    {/* DOWNLINE REGISTRATION SUBTAB */}
+                    {bookingSubTab === 'matrix' && (
+                      <div className="rounded-3xl bg-white p-6 md:p-8 border border-slate-200 shadow-sm space-y-6">
+                        <div>
+                          <h3 className="text-lg font-bold text-slate-900 border-b border-slate-100 pb-3">Registrasi Kemitraan Baru</h3>
+                          <p className="text-sm text-slate-500 mt-2">Daftarkan mitra/downline baru di bawah sponsor Anda. Unggah Bukti Transfer setoran komitmen untuk diajukan ke Admin.</p>
                         </div>
 
-                        <div className="grid gap-4 sm:grid-cols-2">
-                          <div>
-                            <label className="text-xs font-bold uppercase tracking-wider text-slate-500">Setoran Komitmen Awal</label>
-                            <input
-                              type="text"
-                              disabled
-                              value={`Rp ${matrixState.settings.depositAmount.toLocaleString('id-ID')}`}
-                              className="mt-2 w-full rounded-xl bg-slate-100 py-3 px-4 text-sm text-slate-500 ring-1 ring-slate-200"
-                            />
+                        <form onSubmit={handleRegisterRecruit} className="space-y-4 max-w-xl">
+                          <div className="grid gap-4 sm:grid-cols-2">
+                            <div>
+                              <label className="text-xs font-bold uppercase tracking-wider text-slate-500">Nama Lengkap Mitra</label>
+                              <input
+                                type="text"
+                                required
+                                value={newRecruitName}
+                                onChange={(e) => setNewRecruitName(e.target.value)}
+                                placeholder="Contoh: Rian Hidayat"
+                                className="mt-2 w-full rounded-xl bg-slate-50/50 py-3 px-4 text-sm text-slate-900 placeholder-slate-400 ring-1 ring-slate-200 focus:outline-none focus:ring-primary focus:bg-white transition-all"
+                              />
+                            </div>
+
+                            <div>
+                              <label className="text-xs font-bold uppercase tracking-wider text-slate-500">Alamat Email Mitra</label>
+                              <input
+                                type="email"
+                                required
+                                value={newRecruitEmail}
+                                onChange={(e) => setNewRecruitEmail(e.target.value)}
+                                placeholder="Contoh: rian@email.com"
+                                className="mt-2 w-full rounded-xl bg-slate-50/50 py-3 px-4 text-sm text-slate-900 placeholder-slate-400 ring-1 ring-slate-200 focus:outline-none focus:ring-primary focus:bg-white transition-all"
+                              />
+                            </div>
+                          </div>
+
+                          <div className="grid gap-4 sm:grid-cols-2">
+                            <div>
+                              <label className="text-xs font-bold uppercase tracking-wider text-slate-500">Setoran Komitmen Awal</label>
+                              <input
+                                type="text"
+                                disabled
+                                value={`Rp ${matrixState.settings.depositAmount.toLocaleString('id-ID')}`}
+                                className="mt-2 w-full rounded-xl bg-slate-100 py-3 px-4 text-sm text-slate-500 ring-1 ring-slate-200"
+                              />
+                            </div>
+
+                            <div>
+                              <label className="text-xs font-bold uppercase tracking-wider text-slate-500">Bukti Transfer (Struk Bank)</label>
+                              <div className="relative mt-2">
+                                <input
+                                  type="file"
+                                  accept="image/*"
+                                  onChange={(e) => {
+                                    if (e.target.files && e.target.files[0]) {
+                                      setMockFileName(e.target.files[0].name)
+                                    }
+                                  }}
+                                  className="absolute inset-0 size-full cursor-pointer opacity-0"
+                                />
+                                <div className="flex items-center gap-2 rounded-xl bg-slate-50/50 py-3 px-4 text-sm text-slate-655 ring-1 ring-slate-200 focus:bg-white">
+                                  <FileImage className="size-4 shrink-0 text-slate-400" />
+                                  <span className="truncate">{mockFileName}</span>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+
+                          <button
+                            type="submit"
+                            className="flex items-center justify-center gap-2 rounded-xl bg-[#10854c] hover:bg-[#0c6e3e] text-white px-5 py-3.5 text-sm font-semibold transition-all mt-4 w-full sm:w-auto animate-pulse"
+                          >
+                            <UserPlus className="size-4.5" />
+                            Ajukan Registrasi Kemitraan
+                          </button>
+                        </form>
+                      </div>
+                    )}
+
+                    {/* PERSONAL PACKAGE BOOKING SUBTAB */}
+                    {bookingSubTab === 'personal' && (
+                      <div className="rounded-3xl bg-white p-6 md:p-8 border border-slate-200 shadow-sm space-y-6">
+                        <div>
+                          <h3 className="text-lg font-bold text-slate-900 border-b border-slate-100 pb-3">Booking Paket Umroh Anda</h3>
+                          <p className="text-sm text-slate-500 mt-2">Pesan keberangkatan Umroh reguler/VIP secara resmi untuk Anda atau keluarga. Lengkapi data dan struk pembayaran awal (DP).</p>
+                        </div>
+
+                        <form onSubmit={handleBookPackage} className="space-y-4 max-w-xl">
+                          <div className="grid gap-4 sm:grid-cols-2">
+                            <div>
+                              <label className="text-xs font-bold uppercase tracking-wider text-slate-500">Nama Lengkap Jamaah</label>
+                              <input
+                                type="text"
+                                required
+                                value={bookPassengerName}
+                                onChange={(e) => setBookPassengerName(e.target.value)}
+                                placeholder="Nama sesuai paspor"
+                                className="mt-2 w-full rounded-xl bg-slate-50/50 py-3 px-4 text-sm text-slate-900 placeholder-slate-400 ring-1 ring-slate-200 focus:outline-none focus:ring-primary focus:bg-white transition-all"
+                              />
+                            </div>
+
+                            <div>
+                              <label className="text-xs font-bold uppercase tracking-wider text-slate-500">Nomor Telepon Kontak</label>
+                              <input
+                                type="text"
+                                required
+                                value={bookPassengerPhone}
+                                onChange={(e) => setBookPassengerPhone(e.target.value)}
+                                placeholder="Contoh: 0812-xxxx-xxxx"
+                                className="mt-2 w-full rounded-xl bg-slate-50/50 py-3 px-4 text-sm text-slate-900 placeholder-slate-400 ring-1 ring-slate-200 focus:outline-none focus:ring-primary focus:bg-white transition-all"
+                              />
+                            </div>
+                          </div>
+
+                          <div className="grid gap-4 sm:grid-cols-2">
+                            <div>
+                              <label className="text-xs font-bold uppercase tracking-wider text-slate-500">Pilih Paket Umroh</label>
+                              <select
+                                value={bookSelectedPkg}
+                                onChange={(e) => setBookSelectedPkg(e.target.value)}
+                                required
+                                className="mt-2 w-full rounded-xl bg-slate-50/50 py-3 px-4 text-sm text-slate-900 ring-1 ring-slate-200 focus:outline-none focus:ring-primary focus:bg-white"
+                              >
+                                <option value="">-- Pilih Paket --</option>
+                                {packagesList.map((pkg) => (
+                                  <option key={pkg.name} value={pkg.name}>
+                                    {pkg.name} ({pkg.price})
+                                  </option>
+                                ))}
+                              </select>
+                            </div>
+
+                            <div>
+                              <label className="text-xs font-bold uppercase tracking-wider text-slate-500">Pilih Jadwal Keberangkatan</label>
+                              <select
+                                value={bookSelectedSch}
+                                onChange={(e) => setBookSelectedSch(e.target.value)}
+                                required
+                                className="mt-2 w-full rounded-xl bg-slate-50/50 py-3 px-4 text-sm text-slate-900 ring-1 ring-slate-200 focus:outline-none focus:ring-primary focus:bg-white"
+                              >
+                                <option value="">-- Pilih Jadwal --</option>
+                                {schedulesList.map((s, idx) => (
+                                  <option key={idx} value={s.date}>
+                                    {s.date} - {s.name}
+                                  </option>
+                                ))}
+                              </select>
+                            </div>
                           </div>
 
                           <div>
@@ -847,76 +1118,120 @@ export default function DashboardPage() {
                                 accept="image/*"
                                 onChange={(e) => {
                                   if (e.target.files && e.target.files[0]) {
-                                    setMockFileName(e.target.files[0].name)
+                                    setBookFileName(e.target.files[0].name)
                                   }
                                 }}
+                                required
                                 className="absolute inset-0 size-full cursor-pointer opacity-0"
                               />
-                              <div className="flex items-center gap-2 rounded-xl bg-slate-50/50 py-3 px-4 text-sm text-slate-600 ring-1 ring-slate-200 focus:bg-white">
+                              <div className="flex items-center gap-2 rounded-xl bg-slate-50/50 py-3 px-4 text-sm text-slate-655 ring-1 ring-slate-200 focus:bg-white">
                                 <FileImage className="size-4 shrink-0 text-slate-400" />
-                                <span className="truncate">{mockFileName}</span>
+                                <span className="truncate">{bookFileName}</span>
                               </div>
                             </div>
+                            <p className="mt-1.5 text-[10px] text-slate-550 flex items-center gap-1">
+                              <Info className="size-3 text-primary" /> Transfer ke rekening resmi Bank Syariah Indonesia (BSI) BSM: 123-456-7890.
+                            </p>
                           </div>
-                        </div>
 
-                        <button
-                          type="submit"
-                          className="flex items-center justify-center gap-2 rounded-xl bg-[#10854c] hover:bg-[#0c6e3e] text-white px-5 py-3.5 text-sm font-semibold transition-all mt-4 w-full sm:w-auto"
-                        >
-                          <UserPlus className="size-4.5" />
-                          Ajukan Registrasi Kemitraan
-                        </button>
-                      </form>
-                    </div>
+                          <button
+                            type="submit"
+                            className="flex items-center justify-center gap-2 rounded-xl bg-primary hover:bg-primary/95 text-primary-foreground px-5 py-3.5 text-sm font-semibold transition-all mt-4 w-full sm:w-auto"
+                          >
+                            <ShoppingBag className="size-4.5" />
+                            Kirim Pemesanan Paket
+                          </button>
+                        </form>
+                      </div>
+                    )}
 
-                    {/* Pending Submissions Table */}
+                    {/* Active Requests List */}
                     <div className="rounded-3xl bg-white p-6 border border-slate-200 shadow-sm space-y-4">
-                      <h4 className="font-bold text-slate-850 border-b border-slate-100 pb-2">Status Pengajuan Kemitraan</h4>
+                      <h4 className="font-bold text-slate-850 border-b border-slate-100 pb-2">
+                        {bookingSubTab === 'matrix' ? 'Status Pengajuan Kemitraan' : 'Daftar Pemesanan Paket Pribadi Saya'}
+                      </h4>
                       <div className="overflow-x-auto">
                         <table className="w-full border-collapse text-left text-xs text-slate-600">
                           <thead className="bg-slate-50 text-slate-500 font-bold border-b border-slate-200">
-                            <tr>
-                              <th className="px-4 py-2.5">Tanggal</th>
-                              <th className="px-4 py-2.5">Mitra Baru</th>
-                              <th className="px-4 py-2.5">Email</th>
-                              <th className="px-4 py-2.5">Setoran</th>
-                              <th className="px-4 py-2.5">Status Verifikasi</th>
-                            </tr>
-                          </thead>
-                          <tbody className="divide-y divide-slate-100">
-                            {matrixState.depositRequests.filter((r) => r.sponsorEmail === currentUser.email).length === 0 ? (
+                            {bookingSubTab === 'matrix' ? (
                               <tr>
-                                <td colSpan={5} className="text-center py-6 text-slate-400">Belum ada pengajuan kemitraan.</td>
+                                <th className="px-4 py-2.5">Tanggal</th>
+                                <th className="px-4 py-2.5">Mitra Baru</th>
+                                <th className="px-4 py-2.5">Email</th>
+                                <th className="px-4 py-2.5">Setoran</th>
+                                <th className="px-4 py-2.5">Status Verifikasi</th>
                               </tr>
                             ) : (
-                              matrixState.depositRequests
-                                .filter((r) => r.sponsorEmail === currentUser.email)
-                                .map((req) => (
-                                  <tr key={req.id} className="hover:bg-slate-50/50 transition-colors">
-                                    <td className="px-4 py-3">{req.date}</td>
-                                    <td className="px-4 py-3 font-semibold text-slate-800">{req.recruitName}</td>
-                                    <td className="px-4 py-3 text-slate-400">{req.recruitEmail}</td>
-                                    <td className="px-4 py-3 font-bold text-slate-700">Rp {req.amount.toLocaleString('id-ID')}</td>
-                                    <td className="px-4 py-3">
+                              <tr>
+                                <th className="px-4 py-2.5">Tanggal</th>
+                                <th className="px-4 py-2.5">Nama Jamaah</th>
+                                <th className="px-4 py-2.5">Paket</th>
+                                <th className="px-4 py-2.5">Jadwal Keberangkatan</th>
+                                <th className="px-4 py-2.5">Nominal</th>
+                                <th className="px-4 py-2.5 text-center">Status Pemesanan</th>
+                              </tr>
+                            )}
+                          </thead>
+                          <tbody className="divide-y divide-slate-100">
+                            {bookingSubTab === 'matrix' ? (
+                              matrixState.depositRequests.filter((r) => r.sponsorEmail === currentUser.email).length === 0 ? (
+                                <tr>
+                                  <td colSpan={5} className="text-center py-6 text-slate-400">Belum ada pengajuan kemitraan.</td>
+                                </tr>
+                              ) : (
+                                matrixState.depositRequests
+                                  .filter((r) => r.sponsorEmail === currentUser.email)
+                                  .map((req) => (
+                                    <tr key={req.id} className="hover:bg-slate-50/50 transition-colors">
+                                      <td className="px-4 py-3">{req.date}</td>
+                                      <td className="px-4 py-3 font-semibold text-slate-800">{req.recruitName}</td>
+                                      <td className="px-4 py-3 text-slate-400">{req.recruitEmail}</td>
+                                      <td className="px-4 py-3 font-bold text-slate-700">Rp {req.amount.toLocaleString('id-ID')}</td>
+                                      <td className="px-4 py-3">
+                                        <span
+                                          className={`rounded-full px-2.5 py-0.5 text-[9px] font-bold uppercase tracking-wider ${
+                                            req.status === 'approved'
+                                              ? 'bg-emerald-100 text-emerald-700 border border-emerald-250'
+                                              : req.status === 'rejected'
+                                              ? 'bg-rose-100 text-rose-700 border border-rose-250'
+                                              : 'bg-amber-100 text-amber-700 border border-amber-250 animate-pulse'
+                                          }`}
+                                        >
+                                          {req.status === 'approved' ? 'Disetujui' : req.status === 'rejected' ? 'Ditolak' : 'Menunggu Verifikasi'}
+                                        </span>
+                                      </td>
+                                    </tr>
+                                  ))
+                              )
+                            ) : (
+                              packageBookings.length === 0 ? (
+                                <tr>
+                                  <td colSpan={6} className="text-center py-6 text-slate-400">Belum ada pemesanan paket umroh.</td>
+                                </tr>
+                              ) : (
+                                packageBookings.map((b) => (
+                                  <tr key={b.id} className="hover:bg-slate-50/50 transition-colors">
+                                    <td className="px-4 py-3">{b.date}</td>
+                                    <td className="px-4 py-3 font-semibold text-slate-800">{b.passengerName}</td>
+                                    <td className="px-4 py-3 text-slate-500 font-medium">{b.packageName}</td>
+                                    <td className="px-4 py-3">{b.scheduleDate}</td>
+                                    <td className="px-4 py-3 font-bold text-slate-700">Rp {b.amount.toLocaleString('id-ID')}</td>
+                                    <td className="px-4 py-3 text-center">
                                       <span
                                         className={`rounded-full px-2.5 py-0.5 text-[9px] font-bold uppercase tracking-wider ${
-                                          req.status === 'approved'
+                                          b.status === 'approved'
                                             ? 'bg-emerald-100 text-emerald-700 border border-emerald-250'
-                                            : req.status === 'rejected'
+                                            : b.status === 'rejected'
                                             ? 'bg-rose-100 text-rose-700 border border-rose-250'
                                             : 'bg-amber-100 text-amber-700 border border-amber-250 animate-pulse'
                                         }`}
                                       >
-                                        {req.status === 'approved'
-                                          ? 'Disetujui'
-                                          : req.status === 'rejected'
-                                          ? 'Ditolak'
-                                          : 'Menunggu Verifikasi'}
+                                        {b.status === 'approved' ? 'Terkonfirmasi' : b.status === 'rejected' ? 'Ditolak' : 'Menunggu Review'}
                                       </span>
                                     </td>
                                   </tr>
                                 ))
+                              )
                             )}
                           </tbody>
                         </table>
@@ -984,7 +1299,7 @@ export default function DashboardPage() {
             )
           ) : (
             /* =========================================================================
-               ADMIN & SUPERADMIN CMS VIEWS
+               ADMIN & SUPERADMIN CMS & VERIFICATION VIEWS
                ========================================================================= */
             <div className="space-y-6">
               
@@ -1037,7 +1352,7 @@ export default function DashboardPage() {
                         className={`rounded-xl px-4 py-2 text-sm font-bold transition-all border ${
                           selectedPkgIndex === idx
                             ? 'bg-primary text-white border-primary shadow-md'
-                            : 'bg-white text-slate-600 border-slate-200 hover:text-slate-955 hover:bg-slate-50'
+                            : 'bg-white text-slate-655 border-slate-200 hover:text-slate-955 hover:bg-slate-50'
                         }`}
                       >
                         {pkg.name}
@@ -1133,7 +1448,461 @@ export default function DashboardPage() {
                         className={`rounded-xl px-4 py-2 text-sm font-bold transition-all border ${
                           selectedSchIndex === idx
                             ? 'bg-primary text-white border-primary shadow-md'
-                            : 'bg-white text-slate-600 border-slate-200 hover:text-slate-955 hover:bg-slate-50'
+                            : 'bg-white text-slate-655 border-slate-200 hover:text-slate-955 hover:bg-slate-50'
+                        }`}
+                      >
+                        {sch.date} - {sch.name}
+                      </button>
+                    ))}
+                  </div>
+
+                  <form onSubmit={handleSaveSchedules} className="rounded-3xl bg-white p-6 md:p-8 border border-slate-200 shadow-sm space-y-5">
+                    <h3 className="text-lg font-bold text-slate-900 border-b border-slate-100 pb-3">
+                      Ubah Konten Keberangkatan: {schedulesList[selectedSchIndex].date}
+                    </h3>
+
+                    <div className="grid gap-6 md:grid-cols-2">
+                      <div>
+                        <label className="text-xs font-semibold uppercase tracking-wider text-slate-500">Tanggal Keberangkatan</label>
+                        <input
+                          type="text"
+                          disabled={!isEditable}
+                          value={schedulesList[selectedSchIndex].date}
+                          onChange={(e) => updateScheduleField(selectedSchIndex, 'date', e.target.value)}
+                          className="mt-2 w-full rounded-xl bg-slate-50/50 py-3 px-4 text-sm text-slate-900 ring-1 ring-slate-200 focus:outline-none focus:ring-primary focus:bg-white transition-all disabled:opacity-50"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="text-xs font-semibold uppercase tracking-wider text-slate-500">Nama Paket</label>
+                        <input
+                          type="text"
+                          disabled={!isEditable}
+                          value={schedulesList[selectedSchIndex].name}
+                          onChange={(e) => updateScheduleField(selectedSchIndex, 'name', e.target.value)}
+                          className="mt-2 w-full rounded-xl bg-slate-50/50 py-3 px-4 text-sm text-slate-900 ring-1 ring-slate-200 focus:outline-none focus:ring-primary focus:bg-white transition-all disabled:opacity-50"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="text-xs font-semibold uppercase tracking-wider text-slate-500">Harga Seat</label>
+                        <input
+                          type="text"
+                          disabled={!isEditable}
+                          value={schedulesList[selectedSchIndex].price}
+                          onChange={(e) => updateScheduleField(selectedSchIndex, 'price', e.target.value)}
+                          className="mt-2 w-full rounded-xl bg-slate-50/50 py-3 px-4 text-sm text-slate-900 ring-1 ring-slate-200 focus:outline-none focus:ring-primary focus:bg-white transition-all disabled:opacity-50"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="text-xs font-semibold uppercase tracking-wider text-slate-500">Status Seat</label>
+                        <select
+                          disabled={!isEditable}
+                          value={schedulesList[selectedSchIndex].status}
+                          onChange={(e) => updateScheduleField(selectedSchIndex, 'status', e.target.value)}
+                          className="mt-2 w-full rounded-xl bg-slate-50/50 py-3 px-4 text-sm text-slate-900 ring-1 ring-slate-200 focus:outline-none focus:ring-primary focus:bg-white transition-all disabled:opacity-50"
+                        >
+                          <option value="open">Tersedia (Open)</option>
+                          <option value="full">Penuh (Full Booked)</option>
+                        </select>
+                      </div>
+                    </div>
+
+                    {isEditable && (
+                      <button
+                        type="submit"
+                        className="flex items-center gap-2 rounded-xl bg-primary px-5 py-3 text-sm font-semibold text-primary-foreground shadow-md hover:bg-primary/95 transition-all mt-4"
+                      >
+                        <Save className="size-4" />
+                        Simpan Perubahan Jadwal
+                      </button>
+                    )}
+                  </form>
+                </div>
+              )}
+
+              {/* ADMIN TAB 4: SERVICES EDITOR */}
+              {adminTab === 'services' && servicesList.length > 0 && (
+                <div className="space-y-6">
+                  <div className="flex flex-wrap gap-2">
+                    {servicesList.map((svc, idx) => (
+                      <button
+                        key={svc.title}
+                        onClick={() => setSelectedSvcIndex(idx)}
+                        className={`rounded-xl px-4 py-2 text-sm font-bold transition-all border ${
+                          selectedSvcIndex === idx
+                            ? 'bg-primary text-white border-primary shadow-md'
+                            : 'bg-white text-slate-655 border-slate-200 hover:text-slate-955 hover:bg-slate-50'
+                        }`}
+                      >
+                        {svc.title}
+                      </button>
+                    ))}
+                  </div>
+
+                  <form onSubmit={handleSaveServices} className="rounded-3xl bg-white p-6 md:p-8 border border-slate-200 shadow-sm space-y-5">
+                    <h3 className="text-lg font-bold text-slate-900 border-b border-slate-100 pb-3">
+                      Ubah Konten Layanan Banner: {servicesList[selectedSvcIndex].title}
+                    </h3>
+
+                    <div className="grid gap-6">
+                      <div>
+                        <label className="text-xs font-semibold uppercase tracking-wider text-slate-500">Judul Layanan</label>
+                        <input
+                          type="text"
+                          disabled={!isEditable}
+                          value={servicesList[selectedSvcIndex].title}
+                          onChange={(e) => updateServiceField(selectedSvcIndex, 'title', e.target.value)}
+                          className="mt-2 w-full rounded-xl bg-slate-50/50 py-3 px-4 text-sm text-slate-900 ring-1 ring-slate-200 focus:outline-none focus:ring-primary focus:bg-white transition-all disabled:opacity-50"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="text-xs font-semibold uppercase tracking-wider text-slate-500">Deskripsi Ringkas</label>
+                        <textarea
+                          rows={3}
+                          disabled={!isEditable}
+                          value={servicesList[selectedSvcIndex].desc}
+                          onChange={(e) => updateServiceField(selectedSvcIndex, 'desc', e.target.value)}
+                          className="mt-2 w-full rounded-xl bg-slate-50/50 py-3 px-4 text-sm text-slate-900 ring-1 ring-slate-200 focus:outline-none focus:ring-primary focus:bg-white transition-all disabled:opacity-50"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="text-xs font-semibold uppercase tracking-wider text-slate-500">URL Gambar Banner</label>
+                        <input
+                          type="text"
+                          disabled={!isEditable}
+                          value={servicesList[selectedSvcIndex].image}
+                          onChange={(e) => updateServiceField(selectedSvcIndex, 'image', e.target.value)}
+                          className="mt-2 w-full rounded-xl bg-slate-50/50 py-3 px-4 text-sm text-slate-900 ring-1 ring-slate-200 focus:outline-none focus:ring-primary focus:bg-white transition-all disabled:opacity-50"
+                        />
+                      </div>
+                    </div>
+
+                    {isEditable && (
+                      <button
+                        type="submit"
+                        className="flex items-center gap-2 rounded-xl bg-primary px-5 py-3 text-sm font-semibold text-primary-foreground shadow-md hover:bg-primary/95 transition-all mt-4"
+                      >
+                        <Save className="size-4" />
+                        Simpan Perubahan Layanan
+                      </button>
+                    )}
+                  </form>
+                </div>
+              )}
+
+              {/* ADMIN TAB 5: DEPOSIT VERIFICATIONS PANEL */}
+              {adminTab === 'deposits' && matrixState && (
+                <div className="space-y-6">
+                  {/* Toggle subtabs */}
+                  <div className="flex rounded-xl bg-slate-100 p-1 border border-slate-200 max-w-md">
+                    <button
+                      onClick={() => setVerifySubTab('matrix')}
+                      className={`flex-1 rounded-lg py-2.5 text-xs font-bold transition-all relative ${
+                        verifySubTab === 'matrix' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-655 hover:text-slate-800'
+                      }`}
+                    >
+                      Setoran Kemitraan (Matriks)
+                      {matrixState.depositRequests.filter((r) => r.status === 'pending').length > 0 && (
+                        <span className="absolute -top-1 -right-1 flex size-4 items-center justify-center rounded-full bg-rose-500 text-[8px] font-bold text-white">
+                          {matrixState.depositRequests.filter((r) => r.status === 'pending').length}
+                        </span>
+                      )}
+                    </button>
+                    <button
+                      onClick={() => setVerifySubTab('package')}
+                      className={`flex-1 rounded-lg py-2.5 text-xs font-bold transition-all relative ${
+                        verifySubTab === 'package' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-655 hover:text-slate-800'
+                      }`}
+                    >
+                      Pemesanan Paket Umroh
+                      {packageBookings.filter((b) => b.status === 'pending').length > 0 && (
+                        <span className="absolute -top-1 -right-1 flex size-4 items-center justify-center rounded-full bg-rose-500 text-[8px] font-bold text-white">
+                          {packageBookings.filter((b) => b.status === 'pending').length}
+                        </span>
+                      )}
+                    </button>
+                  </div>
+
+                  {/* MATRIX DEPOSITS VERIFICATION */}
+                  {verifySubTab === 'matrix' && (
+                    <div className="rounded-3xl bg-white p-6 border border-slate-200 shadow-sm space-y-4">
+                      <div>
+                        <h3 className="text-md font-bold text-slate-900">Verifikasi Setoran Registrasi Kemitraan</h3>
+                        <p className="text-xs text-slate-500">Mempengaruhi komisi sponsor dan penempatan titik di pohon matriks Fly I / Fly II.</p>
+                      </div>
+
+                      <div className="overflow-x-auto">
+                        <table className="w-full border-collapse text-left text-sm text-slate-600">
+                          <thead className="bg-slate-50 text-xs font-bold uppercase tracking-wider text-slate-500 border-b border-slate-200">
+                            <tr>
+                              <th className="px-4 py-3">Tanggal</th>
+                              <th className="px-4 py-3">Sponsor (Member)</th>
+                              <th className="px-4 py-3">Mitra Baru</th>
+                              <th className="px-4 py-3 text-right">Jumlah Setoran</th>
+                              <th className="px-4 py-3 text-center">Struk</th>
+                              <th className="px-4 py-3 text-center">Tindakan</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-slate-100">
+                            {matrixState.depositRequests.length === 0 ? (
+                              <tr>
+                                <td colSpan={6} className="text-center py-6 text-slate-400">Tidak ada pengajuan transfer setoran kemitraan.</td>
+                              </tr>
+                            ) : (
+                              matrixState.depositRequests.map((req) => (
+                                <tr key={req.id} className="hover:bg-slate-50/50 transition-colors">
+                                  <td className="px-4 py-3.5">{req.date}</td>
+                                  <td className="px-4 py-3.5 text-slate-500 truncate max-w-[150px]">{req.sponsorEmail}</td>
+                                  <td className="px-4 py-3.5 font-bold text-slate-800">{req.recruitName}</td>
+                                  <td className="px-4 py-3.5 text-right font-extrabold text-slate-700">Rp {req.amount.toLocaleString('id-ID')}</td>
+                                  <td className="px-4 py-3.5 text-center">
+                                    <button
+                                      onClick={() => {
+                                        setSelectedReceipt(req)
+                                        setShowReceiptModal(true)
+                                      }}
+                                      className="inline-flex items-center gap-1 text-xs font-bold text-primary hover:text-primary/80 bg-primary/5 border border-primary/20 px-2.5 py-1.5 rounded-lg shadow-sm"
+                                    >
+                                      <Eye className="size-3.5" /> Lihat Struk
+                                    </button>
+                                  </td>
+                                  <td className="px-4 py-3.5">
+                                    <div className="flex items-center justify-center gap-1.5">
+                                      {req.status === 'pending' ? (
+                                        <>
+                                          <button
+                                            onClick={() => handleApproveRequest(req.id)}
+                                            className="inline-flex items-center gap-1 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs px-2.5 py-1.5 rounded-lg shadow-sm"
+                                          >
+                                            <Check className="size-3.5" /> Setuju
+                                          </button>
+                                          <button
+                                            onClick={() => handleRejectRequest(req.id)}
+                                            className="inline-flex items-center gap-1 bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs px-2.5 py-1.5 rounded-lg shadow-sm"
+                                          >
+                                            <X className="size-3.5" /> Tolak
+                                          </button>
+                                        </>
+                                      ) : (
+                                        <span
+                                          className={`rounded-full px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider ${
+                                            req.status === 'approved' ? 'bg-emerald-100 text-emerald-700 border border-emerald-200' : 'bg-rose-100 text-rose-700 border border-rose-200'
+                                          }`}
+                                        >
+                                          {req.status === 'approved' ? 'Disetujui' : 'Ditolak'}
+                                        </span>
+                                      )}
+                                    </div>
+                                  </td>
+                                </tr>
+                              ))
+                            )}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* REGULAR PACKAGE BOOKINGS VERIFICATION */}
+                  {verifySubTab === 'package' && (
+                    <div className="rounded-3xl bg-white p-6 border border-slate-200 shadow-sm space-y-4">
+                      <div>
+                        <h3 className="text-md font-bold text-slate-900">Verifikasi Pemesanan Paket Umroh Reguler/VIP</h3>
+                        <p className="text-xs text-slate-500">Review transfer cicilan/DP pendaftaran paket perjalanan mandiri milik jamaah.</p>
+                      </div>
+
+                      <div className="overflow-x-auto">
+                        <table className="w-full border-collapse text-left text-sm text-slate-600">
+                          <thead className="bg-slate-50 text-xs font-bold uppercase tracking-wider text-slate-500 border-b border-slate-200">
+                            <tr>
+                              <th className="px-4 py-3">Tanggal</th>
+                              <th className="px-4 py-3">Email Pemesan</th>
+                              <th className="px-4 py-3">Nama Jamaah</th>
+                              <th className="px-4 py-3">Paket &amp; Jadwal</th>
+                              <th className="px-4 py-3 text-right">Nominal</th>
+                              <th className="px-4 py-3 text-center">Struk</th>
+                              <th className="px-4 py-3 text-center">Tindakan</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-slate-100">
+                            {packageBookings.length === 0 ? (
+                              <tr>
+                                <td colSpan={7} className="text-center py-6 text-slate-400">Tidak ada pengajuan pemesanan paket.</td>
+                              </tr>
+                            ) : (
+                              packageBookings.map((book) => (
+                                <tr key={book.id} className="hover:bg-slate-50/50 transition-colors">
+                                  <td className="px-4 py-3.5">{book.date}</td>
+                                  <td className="px-4 py-3.5 text-slate-500 truncate max-w-[120px]">{book.memberEmail}</td>
+                                  <td className="px-4 py-3.5 font-bold text-slate-800">{book.passengerName}</td>
+                                  <td className="px-4 py-3.5 text-xs">
+                                    <span className="font-semibold block">{book.packageName}</span>
+                                    <span className="text-slate-400">{book.scheduleDate}</span>
+                                  </td>
+                                  <td className="px-4 py-3.5 text-right font-extrabold text-slate-700">Rp {book.amount.toLocaleString('id-ID')}</td>
+                                  <td className="px-4 py-3.5 text-center">
+                                    <button
+                                      onClick={() => {
+                                        setSelectedReceipt(book)
+                                        setShowReceiptModal(true)
+                                      }}
+                                      className="inline-flex items-center gap-1 text-xs font-bold text-primary hover:text-primary/80 bg-primary/5 border border-primary/20 px-2.5 py-1.5 rounded-lg shadow-sm"
+                                    >
+                                      <Eye className="size-3.5" /> Lihat Struk
+                                    </button>
+                                  </td>
+                                  <td className="px-4 py-3.5">
+                                    <div className="flex items-center justify-center gap-1.5">
+                                      {book.status === 'pending' ? (
+                                        <>
+                                          <button
+                                            onClick={() => handleApproveBooking(book.id)}
+                                            className="inline-flex items-center gap-1 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs px-2.5 py-1.5 rounded-lg shadow-sm"
+                                          >
+                                            <Check className="size-3.5" /> Setuju
+                                          </button>
+                                          <button
+                                            onClick={() => handleRejectBooking(book.id)}
+                                            className="inline-flex items-center gap-1 bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs px-2.5 py-1.5 rounded-lg shadow-sm"
+                                          >
+                                            <X className="size-3.5" /> Tolak
+                                          </button>
+                                        </>
+                                      ) : (
+                                        <span
+                                          className={`rounded-full px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider ${
+                                            book.status === 'approved' ? 'bg-emerald-100 text-emerald-700 border border-emerald-200' : 'bg-rose-100 text-rose-700 border border-rose-200'
+                                          }`}
+                                        >
+                                          {book.status === 'approved' ? 'Terkonfirmasi' : 'Ditolak'}
+                                        </span>
+                                      )}
+                                    </div>
+                                  </td>
+                                </tr>
+                              ))
+                            )}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  )}
+
+                </div>
+              )}
+
+              {/* ADMIN TAB 2: PACKAGES EDITOR */}
+              {adminTab === 'packages' && packagesList.length > 0 && (
+                <div className="space-y-6">
+                  <div className="flex flex-wrap gap-2">
+                    {packagesList.map((pkg, idx) => (
+                      <button
+                        key={pkg.name}
+                        onClick={() => setSelectedPkgIndex(idx)}
+                        className={`rounded-xl px-4 py-2 text-sm font-bold transition-all border ${
+                          selectedPkgIndex === idx
+                            ? 'bg-primary text-white border-primary shadow-md'
+                            : 'bg-white text-slate-655 border-slate-200 hover:text-slate-955 hover:bg-slate-50'
+                        }`}
+                      >
+                        {pkg.name}
+                      </button>
+                    ))}
+                  </div>
+
+                  <form onSubmit={handleSavePackages} className="rounded-3xl bg-white p-6 md:p-8 border border-slate-200 shadow-sm space-y-5">
+                    <h3 className="text-lg font-bold text-slate-900 border-b border-slate-100 pb-3">
+                      Ubah Konten: {packagesList[selectedPkgIndex].name}
+                    </h3>
+
+                    <div className="grid gap-6 md:grid-cols-2">
+                      <div>
+                        <label className="text-xs font-semibold uppercase tracking-wider text-slate-500">Harga Paket</label>
+                        <input
+                          type="text"
+                          disabled={!isEditable}
+                          value={packagesList[selectedPkgIndex].price}
+                          onChange={(e) => updatePackageField(selectedPkgIndex, 'price', e.target.value)}
+                          placeholder="Contoh: 28,5 Juta"
+                          className="mt-2 w-full rounded-xl bg-slate-50/50 py-3 px-4 text-sm text-slate-900 placeholder-slate-400 ring-1 ring-slate-200 focus:outline-none focus:ring-primary focus:bg-white transition-all disabled:opacity-50"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="text-xs font-semibold uppercase tracking-wider text-slate-500">Durasi Perjalanan</label>
+                        <input
+                          type="text"
+                          disabled={!isEditable}
+                          value={packagesList[selectedPkgIndex].days}
+                          onChange={(e) => updatePackageField(selectedPkgIndex, 'days', e.target.value)}
+                          placeholder="Contoh: 9 Hari"
+                          className="mt-2 w-full rounded-xl bg-slate-50/50 py-3 px-4 text-sm text-slate-900 placeholder-slate-400 ring-1 ring-slate-200 focus:outline-none focus:ring-primary focus:bg-white transition-all disabled:opacity-50"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="text-xs font-semibold uppercase tracking-wider text-slate-500">Maskapai Penerbangan (Flight)</label>
+                        <input
+                          type="text"
+                          disabled={!isEditable}
+                          value={packagesList[selectedPkgIndex].flight}
+                          onChange={(e) => updatePackageField(selectedPkgIndex, 'flight', e.target.value)}
+                          className="mt-2 w-full rounded-xl bg-slate-50/50 py-3 px-4 text-sm text-slate-900 ring-1 ring-slate-200 focus:outline-none focus:ring-primary focus:bg-white transition-all disabled:opacity-50"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="text-xs font-semibold uppercase tracking-wider text-slate-500">Hotel Madinah</label>
+                        <input
+                          type="text"
+                          disabled={!isEditable}
+                          value={packagesList[selectedPkgIndex].madinahHotel}
+                          onChange={(e) => updatePackageField(selectedPkgIndex, 'madinahHotel', e.target.value)}
+                          className="mt-2 w-full rounded-xl bg-slate-50/50 py-3 px-4 text-sm text-slate-900 ring-1 ring-slate-200 focus:outline-none focus:ring-primary focus:bg-white transition-all disabled:opacity-50"
+                        />
+                      </div>
+
+                      <div className="md:col-span-2">
+                        <label className="text-xs font-semibold uppercase tracking-wider text-slate-500">Hotel Makkah</label>
+                        <input
+                          type="text"
+                          disabled={!isEditable}
+                          value={packagesList[selectedPkgIndex].makkahHotel}
+                          onChange={(e) => updatePackageField(selectedPkgIndex, 'makkahHotel', e.target.value)}
+                          className="mt-2 w-full rounded-xl bg-slate-50/50 py-3 px-4 text-sm text-slate-900 ring-1 ring-slate-200 focus:outline-none focus:ring-primary focus:bg-white transition-all disabled:opacity-50"
+                        />
+                      </div>
+                    </div>
+
+                    {isEditable && (
+                      <button
+                        type="submit"
+                        className="flex items-center gap-2 rounded-xl bg-primary px-5 py-3 text-sm font-semibold text-primary-foreground shadow-md hover:bg-primary/95 transition-all mt-4"
+                      >
+                        <Save className="size-4" />
+                        Simpan Perubahan Paket
+                      </button>
+                    )}
+                  </form>
+                </div>
+              )}
+
+              {/* ADMIN TAB 3: SCHEDULES EDITOR */}
+              {adminTab === 'schedules' && schedulesList.length > 0 && (
+                <div className="space-y-6">
+                  <div className="flex flex-wrap gap-2">
+                    {schedulesList.map((sch, idx) => (
+                      <button
+                        key={idx}
+                        onClick={() => setSelectedSchIndex(idx)}
+                        className={`rounded-xl px-4 py-2 text-sm font-bold transition-all border ${
+                          selectedSchIndex === idx
+                            ? 'bg-primary text-white border-primary shadow-md'
+                            : 'bg-white text-slate-655 border-slate-200 hover:text-slate-955 hover:bg-slate-50'
                         }`}
                       >
                         {sch.date} - {sch.name}
@@ -1218,7 +1987,7 @@ export default function DashboardPage() {
                         className={`rounded-xl px-4 py-2 text-sm font-bold transition-all border ${
                           selectedSvcIndex === idx
                             ? 'bg-primary text-white border-primary shadow-md'
-                            : 'bg-white text-slate-600 border-slate-200 hover:text-slate-955 hover:bg-slate-50'
+                            : 'bg-white text-slate-655 border-slate-200 hover:text-slate-955 hover:bg-slate-50'
                         }`}
                       >
                         {svc.title}
@@ -1276,92 +2045,6 @@ export default function DashboardPage() {
                       </button>
                     )}
                   </form>
-                </div>
-              )}
-
-              {/* ADMIN TAB 5: DEPOSIT VERIFICATIONS PANEL */}
-              {adminTab === 'deposits' && matrixState && (
-                <div className="rounded-3xl bg-white p-6 md:p-8 border border-slate-200 shadow-sm space-y-6">
-                  <div className="border-b border-slate-100 pb-3 flex justify-between items-center flex-wrap gap-2">
-                    <div>
-                      <h3 className="text-lg font-bold text-slate-900">Verifikasi Bukti Transfer Setoran Kemitraan</h3>
-                      <p className="text-sm text-slate-500 mt-1">Review bukti transfer registrasi downline member, setujui untuk memasukkan ke matriks dan membagikan Ujroh.</p>
-                    </div>
-                  </div>
-
-                  <div className="overflow-x-auto">
-                    <table className="w-full border-collapse text-left text-sm text-slate-600">
-                      <thead className="bg-slate-50 text-xs font-bold uppercase tracking-wider text-slate-500 border-b border-slate-200">
-                        <tr>
-                          <th className="px-4 py-3">Tanggal</th>
-                          <th className="px-4 py-3">Sponsor (Member)</th>
-                          <th className="px-4 py-3">Mitra Baru</th>
-                          <th className="px-4 py-3 text-right">Jumlah Setoran</th>
-                          <th className="px-4 py-3 text-center">Bukti Struk</th>
-                          <th className="px-4 py-3 text-center">Tindakan</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-slate-100">
-                        {matrixState.depositRequests.length === 0 ? (
-                          <tr>
-                            <td colSpan={6} className="text-center py-8 text-slate-400">Tidak ada pengajuan transfer setoran kemitraan.</td>
-                          </tr>
-                        ) : (
-                          matrixState.depositRequests.map((req) => (
-                            <tr key={req.id} className="hover:bg-slate-50/50 transition-colors">
-                              <td className="px-4 py-4.5">{req.date}</td>
-                              <td className="px-4 py-4.5 text-slate-500 truncate max-w-[150px]">{req.sponsorEmail}</td>
-                              <td className="px-4 py-4.5 font-bold text-slate-800">{req.recruitName}</td>
-                              <td className="px-4 py-4.5 text-right font-extrabold text-slate-700">Rp {req.amount.toLocaleString('id-ID')}</td>
-                              <td className="px-4 py-4.5 text-center">
-                                <button
-                                  onClick={() => {
-                                    setSelectedReceipt(req)
-                                    setShowReceiptModal(true)
-                                  }}
-                                  className="inline-flex items-center gap-1 text-xs font-bold text-primary hover:text-primary/80 bg-primary/5 border border-primary/20 px-2.5 py-1.5 rounded-lg shadow-sm"
-                                >
-                                  <Eye className="size-3.5" /> Lihat Struk
-                                </button>
-                              </td>
-                              <td className="px-4 py-4.5">
-                                <div className="flex items-center justify-center gap-1.5">
-                                  {req.status === 'pending' ? (
-                                    <>
-                                      <button
-                                        onClick={() => handleApproveRequest(req.id)}
-                                        className="inline-flex items-center gap-1 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs px-2.5 py-1.5 rounded-lg shadow-sm"
-                                        title="Approve / Setujui"
-                                      >
-                                        <Check className="size-3.5" /> Setuju
-                                      </button>
-                                      <button
-                                        onClick={() => handleRejectRequest(req.id)}
-                                        className="inline-flex items-center gap-1 bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs px-2.5 py-1.5 rounded-lg shadow-sm"
-                                        title="Reject / Tolak"
-                                      >
-                                        <X className="size-3.5" /> Tolak
-                                      </button>
-                                    </>
-                                  ) : (
-                                    <span
-                                      className={`rounded-full px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider ${
-                                        req.status === 'approved'
-                                          ? 'bg-emerald-100 text-emerald-700 border border-emerald-200'
-                                          : 'bg-rose-100 text-rose-700 border border-rose-200'
-                                      }`}
-                                    >
-                                      {req.status === 'approved' ? 'Telah Disetujui' : 'Telah Ditolak'}
-                                    </span>
-                                  )}
-                                </div>
-                              </td>
-                            </tr>
-                          ))
-                        )}
-                      </tbody>
-                    </table>
-                  </div>
                 </div>
               )}
 

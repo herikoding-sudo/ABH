@@ -644,6 +644,8 @@ export async function resetMatrixSimulationAsync(): Promise<boolean> {
     await supabase.from('transactions').delete().eq('member_email', email)
     // Delete deposit requests
     await supabase.from('deposit_requests').delete().eq('sponsor_email', email)
+    // Delete package bookings
+    await supabase.from('package_bookings').delete().eq('member_email', email)
 
     // Re-initialize state
     await fetchMatrixStateAsync()
@@ -653,3 +655,184 @@ export async function resetMatrixSimulationAsync(): Promise<boolean> {
     return false
   }
 }
+
+// ----------------------------------------------------
+// Package Bookings (Direct Sales) Operations
+// ----------------------------------------------------
+export type PackageBooking = {
+  id: string
+  memberEmail: string
+  packageName: string
+  scheduleDate: string
+  passengerName: string
+  passengerPhone: string
+  amount: number
+  status: 'pending' | 'approved' | 'rejected'
+  proofImage: string
+  date: string
+}
+
+const INITIAL_BOOKINGS: PackageBooking[] = [
+  {
+    id: 'book_demo_1',
+    memberEmail: 'member@abh.com',
+    packageName: 'Paket VIP 9 D',
+    scheduleDate: '25 Sep 2026',
+    passengerName: 'Ahmad (Member)',
+    passengerPhone: '0812-3456-7890',
+    amount: 37500000,
+    status: 'pending',
+    proofImage: '/images/proof-mock.png',
+    date: '19/07/2026',
+  },
+]
+
+export function getSavedPackageBookings(): PackageBooking[] {
+  if (typeof window === 'undefined') return INITIAL_BOOKINGS
+  const saved = localStorage.getItem('abh_package_bookings')
+  return saved ? JSON.parse(saved) : INITIAL_BOOKINGS
+}
+
+export function savePackageBookings(bookings: PackageBooking[]) {
+  if (typeof window !== 'undefined') {
+    localStorage.setItem('abh_package_bookings', JSON.stringify(bookings))
+  }
+}
+
+export async function fetchPackageBookingsAsync(email?: string): Promise<PackageBooking[]> {
+  const localBookings = getSavedPackageBookings()
+  const filteredLocal = email ? localBookings.filter((b) => b.memberEmail.toLowerCase() === email.toLowerCase()) : localBookings
+
+  if (!isSupabaseConfigured || !supabase) return filteredLocal
+
+  try {
+    let query = supabase.from('package_bookings').select('*').order('created_at', { ascending: false })
+    if (email) {
+      query = query.eq('member_email', email)
+    }
+
+    const { data, error } = await query
+    if (error) throw error
+
+    if (data) {
+      const mapped: PackageBooking[] = data.map((item) => ({
+        id: item.id,
+        memberEmail: item.member_email,
+        packageName: item.package_name,
+        scheduleDate: item.schedule_date,
+        passengerName: item.passenger_name,
+        passengerPhone: item.passenger_phone,
+        amount: Number(item.amount),
+        status: item.status as 'pending' | 'approved' | 'rejected',
+        proofImage: item.proof_image,
+        date: item.date_text,
+      }))
+      // Sync local cache
+      if (!email) {
+        savePackageBookings(mapped)
+      }
+      return mapped
+    }
+  } catch (err) {
+    console.error('Error fetching bookings from Supabase:', err)
+  }
+  return filteredLocal
+}
+
+export async function submitPackageBookingAsync(
+  packageName: string,
+  scheduleDate: string,
+  passengerName: string,
+  passengerPhone: string,
+  amount: number,
+  proofImage: string,
+  memberEmail: string
+): Promise<boolean> {
+  const newBooking: PackageBooking = {
+    id: `book_${Date.now()}`,
+    memberEmail,
+    packageName,
+    scheduleDate,
+    passengerName,
+    passengerPhone,
+    amount,
+    status: 'pending',
+    proofImage,
+    date: new Date().toLocaleDateString('id-ID'),
+  }
+
+  // 1. Local storage update
+  const localList = getSavedPackageBookings()
+  localList.unshift(newBooking)
+  savePackageBookings(localList)
+
+  // 2. Supabase insert
+  if (isSupabaseConfigured && supabase) {
+    try {
+      const { error } = await supabase.from('package_bookings').insert({
+        member_email: memberEmail,
+        package_name: packageName,
+        schedule_date: scheduleDate,
+        passenger_name: passengerName,
+        passenger_phone: passengerPhone,
+        amount,
+        status: 'pending',
+        proof_image: proofImage,
+        date_text: newBooking.date,
+      })
+      if (error) throw error
+    } catch (err) {
+      console.error('Error submitting package booking to Supabase:', err)
+      return false
+    }
+  }
+
+  return true
+}
+
+export async function approvePackageBookingAsync(bookingId: string): Promise<{ success: boolean; message: string }> {
+  // 1. Local fallback
+  const localList = getSavedPackageBookings()
+  const match = localList.find((b) => b.id === bookingId)
+  if (match) {
+    match.status = 'approved'
+    savePackageBookings(localList)
+  }
+
+  // 2. Supabase update
+  if (isSupabaseConfigured && supabase) {
+    try {
+      const { error } = await supabase.from('package_bookings').update({ status: 'approved' }).eq('id', bookingId)
+      if (error) throw error
+    } catch (err) {
+      console.error('Error approving booking in Supabase:', err)
+      return { success: false, message: 'Gagal menyetujui pesanan.' }
+    }
+  }
+
+  return { success: true, message: 'Pemesanan paket berhasil disetujui!' }
+}
+
+export async function rejectPackageBookingAsync(bookingId: string): Promise<{ success: boolean; message: string }> {
+  // 1. Local fallback
+  const localList = getSavedPackageBookings()
+  const match = localList.find((b) => b.id === bookingId)
+  if (match) {
+    match.status = 'rejected'
+    savePackageBookings(localList)
+  }
+
+  // 2. Supabase update
+  if (isSupabaseConfigured && supabase) {
+    try {
+      const { error } = await supabase.from('package_bookings').update({ status: 'rejected' }).eq('id', bookingId)
+      if (error) throw error
+    } catch (err) {
+      console.error('Error rejecting booking in Supabase:', err)
+      return { success: false, message: 'Gagal menolak pesanan.' }
+    }
+  }
+
+  return { success: true, message: 'Pemesanan paket telah ditolak.' }
+}
+
