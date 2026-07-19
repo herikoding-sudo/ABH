@@ -94,7 +94,24 @@ const INITIAL_DEPOSIT_REQUESTS: DepositRequest[] = [
 ]
 
 // Local Fallback Helpers
+export function getActiveUserEmail(): string {
+  if (typeof window === 'undefined') return 'member@abh.com'
+  const saved = sessionStorage.getItem('abh_session')
+  if (saved) {
+    try {
+      const parsed = JSON.parse(saved)
+      if (parsed && parsed.email) {
+        return parsed.email
+      }
+    } catch (e) {
+      console.error(e)
+    }
+  }
+  return 'member@abh.com'
+}
+
 export function getMatrixState(): MatrixState {
+  const email = getActiveUserEmail()
   if (typeof window === 'undefined') {
     return {
       balance: 0,
@@ -109,7 +126,7 @@ export function getMatrixState(): MatrixState {
     }
   }
 
-  const saved = localStorage.getItem('abh_matrix_state')
+  const saved = localStorage.getItem(`abh_matrix_state_${email}`)
   if (saved) {
     const parsed = JSON.parse(saved)
     if (!parsed.settings) parsed.settings = DEFAULT_SETTINGS
@@ -117,11 +134,26 @@ export function getMatrixState(): MatrixState {
     return parsed
   }
 
+  const isHeri = email.toLowerCase() === 'heri@abh.com'
+  const initialFly1 = isHeri
+    ? [
+        { name: 'Heri', email: 'heri@abh.com', role: 'member', isUser: true },
+        null, null, null, null, null, null
+      ]
+    : INITIAL_FLY1_BOARD
+
+  const initialFly2 = isHeri
+    ? [
+        { name: 'Heri', email: 'heri@abh.com', role: 'member', isUser: true },
+        ...Array.from({ length: 14 }).map(() => null)
+      ]
+    : INITIAL_FLY2_BOARD
+
   const initialState: MatrixState = {
     balance: 0,
     downlinesCount: 0,
-    fly1Board: INITIAL_FLY1_BOARD,
-    fly2Board: INITIAL_FLY2_BOARD,
+    fly1Board: initialFly1,
+    fly2Board: initialFly2,
     transactions: [
       {
         id: 'tx_init',
@@ -136,13 +168,14 @@ export function getMatrixState(): MatrixState {
     settings: DEFAULT_SETTINGS,
     depositRequests: INITIAL_DEPOSIT_REQUESTS,
   }
-  localStorage.setItem('abh_matrix_state', JSON.stringify(initialState))
+  localStorage.setItem(`abh_matrix_state_${email}`, JSON.stringify(initialState))
   return initialState
 }
 
 export function saveMatrixState(state: MatrixState) {
   if (typeof window !== 'undefined') {
-    localStorage.setItem('abh_matrix_state', JSON.stringify(state))
+    const email = getActiveUserEmail()
+    localStorage.setItem(`abh_matrix_state_${email}`, JSON.stringify(state))
   }
 }
 
@@ -172,7 +205,7 @@ export function submitDepositRequest(name: string, email: string, sponsorEmail: 
 // Supabase Async Operations with Local fallback
 // ----------------------------------------------------
 
-export async function fetchMatrixStateAsync(): Promise<MatrixState> {
+export async function fetchMatrixStateAsync(providedEmail?: string): Promise<MatrixState> {
   const localState = getMatrixState()
   if (!isSupabaseConfigured || !supabase) return localState
 
@@ -190,7 +223,7 @@ export async function fetchMatrixStateAsync(): Promise<MatrixState> {
     }
 
     // 2. Fetch member matrix details
-    const email = 'member@abh.com' // Hardcoded demo profile
+    const email = providedEmail || getActiveUserEmail()
     let balance = 0
     let downlinesCount = 0
     let hasCompletedFly1 = false
@@ -441,12 +474,12 @@ export async function approveDepositRequestAsync(requestId: string): Promise<{ s
 
   try {
     // 2. Real Supabase Approval Flow
-    const email = 'member@abh.com'
-    const state = await fetchMatrixStateAsync()
-    
     // Find request in Supabase
     const { data: requestData } = await supabase.from('deposit_requests').select('*').eq('id', requestId).single()
     if (!requestData) return { success: false, message: 'Request tidak ditemukan.', splitOccurred: false }
+
+    const email = requestData.sponsor_email || getActiveUserEmail()
+    const state = await fetchMatrixStateAsync(email)
 
     // Update status to approved
     await supabase.from('deposit_requests').update({ status: 'approved' }).eq('id', requestId)
@@ -635,7 +668,7 @@ export async function resetMatrixSimulationAsync(): Promise<boolean> {
   if (!isSupabaseConfigured || !supabase) return true
 
   try {
-    const email = 'member@abh.com'
+    const email = getActiveUserEmail()
     // Reset member matrix balance
     await supabase.from('member_matrix').delete().eq('email', email)
     // Delete nodes
