@@ -1125,12 +1125,30 @@ export default function DashboardPage() {
                       </span>
                     </div>
 
-                    <MatrixTree nodes={matrixState.fly1Board} type="fly1" currentUserEmail={currentUser.email} />
-
-                    {!matrixState.hasCompletedFly1 && (
-                      <div className="rounded-2xl bg-slate-50 p-4 border border-slate-200 text-center text-sm text-slate-500">
-                        Papan membutuhkan <strong>{matrixState.fly1Board.filter((n) => n === null).length} kemitraan dasar baru</strong> untuk terisi penuh dan memicu pembelahan **"Belah Semangka"**.
+                    {matrixState.hasCompletedFly1 ? (
+                      <div className="rounded-2xl bg-gradient-to-br from-primary/5 to-primary/10 p-6 md:p-8 border border-primary/20 text-center space-y-4">
+                        <div className="inline-flex size-14 items-center justify-center rounded-full bg-primary/20 text-primary">
+                          <Sparkles className="size-8 animate-pulse" />
+                        </div>
+                        <h4 className="text-lg font-bold text-slate-900">Selamat! Anda Telah Menyelesaikan Fly I</h4>
+                        <p className="text-sm text-slate-600 max-w-md mx-auto">
+                          Anda telah berhasil menyelesaikan kualifikasi Papan Fly I (Dasar) dan berhak atas payout komisi. 
+                          Akun Anda sekarang telah naik tingkat ke **Papan Fly II (Papan Utama)**.
+                        </p>
+                        <button
+                          onClick={() => setMemberTab('fly2')}
+                          className="inline-flex items-center gap-2 rounded-xl bg-primary px-5 py-2.5 text-sm font-bold text-white hover:bg-primary/90 transition-all shadow-sm shadow-primary/20"
+                        >
+                          Buka Papan Fly II
+                        </button>
                       </div>
+                    ) : (
+                      <>
+                        <MatrixTree nodes={matrixState.fly1Board} type="fly1" currentUserEmail={currentUser.email} />
+                        <div className="rounded-2xl bg-slate-50 p-4 border border-slate-200 text-center text-sm text-slate-500">
+                          Papan membutuhkan <strong>{matrixState.fly1Board.filter((n) => n === null).length} kemitraan dasar baru</strong> untuk terisi penuh dan memicu pembelahan **"Belah Semangka"**.
+                        </div>
+                      </>
                     )}
                   </div>
                 )}
