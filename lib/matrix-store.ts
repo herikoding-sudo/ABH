@@ -1239,6 +1239,10 @@ export async function rejectPackageBookingAsync(bookingId: string): Promise<{ su
 }
 
 export async function initializeAndPlaceMemberAsync(recruitName: string, recruitEmail: string, sponsorEmail: string = 'member@abh.com'): Promise<{ success: boolean; message: string }> {
+  if (isSupabaseConfigured && supabase) {
+    return { success: true, message: 'Registrasi berhasil. Menunggu verifikasi admin.' }
+  }
+
   // 1. Local fallback
   if (!isSupabaseConfigured || !supabase) {
     const state = getMatrixStateForEmail(sponsorEmail)
