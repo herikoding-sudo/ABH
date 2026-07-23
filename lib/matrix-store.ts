@@ -939,16 +939,61 @@ export async function resetMatrixSimulationAsync(): Promise<boolean> {
 
   try {
     const email = getActiveUserEmail()
-    // Reset member matrix balance
-    await supabase.from('member_matrix').delete().eq('email', email)
-    // Delete nodes
-    await supabase.from('matrix_nodes').delete().eq('member_email', email)
-    // Delete transactions
-    await supabase.from('transactions').delete().eq('member_email', email)
-    // Delete deposit requests
-    await supabase.from('deposit_requests').delete().eq('sponsor_email', email)
-    // Delete package bookings
-    await supabase.from('package_bookings').delete().eq('member_email', email)
+    const isAdmin = email.toLowerCase() === 'admin@abh.com' || email.toLowerCase() === 'superadmin@abh.com'
+
+    if (isAdmin) {
+      // 1. Wipe all test users and data except default accounts
+      const defaultEmails = ['member@abh.com', 'admin@abh.com', 'superadmin@abh.com']
+      
+      await supabase.from('matrix_nodes').delete().not('member_email', 'in', `(${defaultEmails.join(',')})`)
+      await supabase.from('member_matrix').delete().not('email', 'in', `(${defaultEmails.join(',')})`)
+      await supabase.from('transactions').delete().not('member_email', 'in', `(${defaultEmails.join(',')})`)
+      await supabase.from('deposit_requests').delete().neq('id', '00000000-0000-0000-0000-000000000000') // delete all
+      await supabase.from('user_accounts').delete().not('email', 'in', `(${defaultEmails.join(',')})`)
+
+      // 2. Restore default member@abh.com stats
+      await supabase.from('member_matrix')
+        .update({ balance: 1250000, downlines_count: 5, has_completed_fly1: false, has_completed_fly2: false })
+        .eq('email', 'member@abh.com')
+
+      // 3. Restore default member@abh.com Fly 1 and Fly 2 nodes
+      await supabase.from('matrix_nodes').delete().eq('member_email', 'member@abh.com')
+      
+      const defaultNodesFly1 = [
+        { member_email: 'member@abh.com', board_type: 'fly1', node_index: 0, name: 'Ahmad (Member)', email: 'member@abh.com', is_user: true },
+        { member_email: 'member@abh.com', board_type: 'fly1', node_index: 1, name: 'Farhan', email: 'farhan@email.com', is_user: false },
+        { member_email: 'member@abh.com', board_type: 'fly1', node_index: 2, name: 'Diana', email: 'diana@email.com', is_user: false },
+        { member_email: 'member@abh.com', board_type: 'fly1', node_index: 3, name: 'Eko', email: 'eko@email.com', is_user: false },
+        { member_email: 'member@abh.com', board_type: 'fly1', node_index: 4, name: 'Fitri', email: 'fitri@email.com', is_user: false },
+        { member_email: 'member@abh.com', board_type: 'fly1', node_index: 5, name: null, email: null, is_user: false },
+        { member_email: 'member@abh.com', board_type: 'fly1', node_index: 6, name: null, email: null, is_user: false },
+      ]
+      const defaultNodesFly2 = [
+        { member_email: 'member@abh.com', board_type: 'fly2', node_index: 0, name: 'Ahmad (Member)', email: 'member@abh.com', is_user: true },
+        { member_email: 'member@abh.com', board_type: 'fly2', node_index: 1, name: 'Sponsor A', email: 'sp_a@email.com', is_user: false },
+        { member_email: 'member@abh.com', board_type: 'fly2', node_index: 2, name: 'Sponsor B', email: 'sp_b@email.com', is_user: false },
+        { member_email: 'member@abh.com', board_type: 'fly2', node_index: 3, name: 'Mitra C', email: 'm_c@email.com', is_user: false },
+        { member_email: 'member@abh.com', board_type: 'fly2', node_index: 4, name: 'Mitra D', email: 'm_d@email.com', is_user: false },
+        { member_email: 'member@abh.com', board_type: 'fly2', node_index: 5, name: 'Mitra E', email: 'm_e@email.com', is_user: false },
+        { member_email: 'member@abh.com', board_type: 'fly2', node_index: 6, name: 'Mitra F', email: 'm_f@email.com', is_user: false },
+        { member_email: 'member@abh.com', board_type: 'fly2', node_index: 7, name: 'Mitra G', email: 'm_g@email.com', is_user: false },
+        { member_email: 'member@abh.com', board_type: 'fly2', node_index: 8, name: 'Mitra H', email: 'm_h@email.com', is_user: false },
+        { member_email: 'member@abh.com', board_type: 'fly2', node_index: 9, name: 'Mitra I', email: 'm_i@email.com', is_user: false },
+        { member_email: 'member@abh.com', board_type: 'fly2', node_index: 10, name: 'Mitra J', email: 'm_j@email.com', is_user: false },
+        { member_email: 'member@abh.com', board_type: 'fly2', node_index: 11, name: 'Mitra K', email: 'm_k@email.com', is_user: false },
+        { member_email: 'member@abh.com', board_type: 'fly2', node_index: 12, name: 'Mitra L', email: 'm_l@email.com', is_user: false },
+        { member_email: 'member@abh.com', board_type: 'fly2', node_index: 13, name: null, email: null, is_user: false },
+        { member_email: 'member@abh.com', board_type: 'fly2', node_index: 14, name: null, email: null, is_user: false },
+      ]
+      await supabase.from('matrix_nodes').insert([...defaultNodesFly1, ...defaultNodesFly2])
+    } else {
+      // Normal single user reset
+      await supabase.from('member_matrix').delete().eq('email', email)
+      await supabase.from('matrix_nodes').delete().eq('member_email', email)
+      await supabase.from('transactions').delete().eq('member_email', email)
+      await supabase.from('deposit_requests').delete().eq('sponsor_email', email)
+      await supabase.from('package_bookings').delete().eq('member_email', email)
+    }
 
     // Re-initialize state
     await fetchMatrixStateAsync()
