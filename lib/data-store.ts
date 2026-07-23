@@ -29,12 +29,19 @@ export function getSession(): User | null {
 export function setSession(user: User) {
   if (typeof window !== 'undefined') {
     sessionStorage.setItem('abh_session', JSON.stringify(user))
+    localStorage.removeItem(`abh_matrix_state_${user.email.toLowerCase()}`)
   }
 }
 
 export function clearSession() {
   if (typeof window !== 'undefined') {
     sessionStorage.removeItem('abh_session')
+    for (let i = localStorage.length - 1; i >= 0; i--) {
+      const key = localStorage.key(i)
+      if (key && key.startsWith('abh_matrix_state_')) {
+        localStorage.removeItem(key)
+      }
+    }
   }
 }
 
@@ -156,12 +163,14 @@ export async function registerUserAsync(name: string, email: string, password: s
 // Packages Operations
 // ----------------------------------------------------
 export function getSavedPackages(): Package[] {
+  if (isSupabaseConfigured && supabase) return paketUmroh
   if (typeof window === 'undefined') return paketUmroh
   const saved = localStorage.getItem('abh_paketUmroh')
   return saved ? JSON.parse(saved) : paketUmroh
 }
 
 export function savePackages(data: Package[]) {
+  if (isSupabaseConfigured && supabase) return
   if (typeof window !== 'undefined') {
     localStorage.setItem('abh_paketUmroh', JSON.stringify(data))
   }
@@ -235,12 +244,14 @@ export async function savePackagesAsync(list: Package[]): Promise<boolean> {
 // Schedules Operations
 // ----------------------------------------------------
 export function getSavedSchedules(): Schedule[] {
+  if (isSupabaseConfigured && supabase) return schedules
   if (typeof window === 'undefined') return schedules
   const saved = localStorage.getItem('abh_schedules')
   return saved ? JSON.parse(saved) : schedules
 }
 
 export function saveSchedules(data: Schedule[]) {
+  if (isSupabaseConfigured && supabase) return
   if (typeof window !== 'undefined') {
     localStorage.setItem('abh_schedules', JSON.stringify(data))
   }
@@ -314,12 +325,14 @@ export async function saveSchedulesAsync(list: Schedule[]): Promise<boolean> {
 // Services Operations
 // ----------------------------------------------------
 export function getSavedServices(): Service[] {
+  if (isSupabaseConfigured && supabase) return services
   if (typeof window === 'undefined') return services
   const saved = localStorage.getItem('abh_services')
   return saved ? JSON.parse(saved) : services
 }
 
 export function saveServices(data: Service[]) {
+  if (isSupabaseConfigured && supabase) return
   if (typeof window !== 'undefined') {
     localStorage.setItem('abh_services', JSON.stringify(data))
   }
@@ -381,11 +394,13 @@ export async function saveServicesAsync(list: Service[]): Promise<boolean> {
 // Settings & Phone Operations
 // ----------------------------------------------------
 export function getSavedPhone(): string {
+  if (isSupabaseConfigured && supabase) return '0895-1844-3354'
   if (typeof window === 'undefined') return '0895-1844-3354'
   return localStorage.getItem('abh_phone') || '0895-1844-3354'
 }
 
 export function savePhone(phone: string) {
+  if (isSupabaseConfigured && supabase) return
   if (typeof window !== 'undefined') {
     localStorage.setItem('abh_phone', phone)
     let cleanNumber = phone.replace(/[^0-9]/g, '')

@@ -1090,12 +1090,14 @@ const INITIAL_BOOKINGS: PackageBooking[] = [
 ]
 
 export function getSavedPackageBookings(): PackageBooking[] {
+  if (isSupabaseConfigured && supabase) return INITIAL_BOOKINGS
   if (typeof window === 'undefined') return INITIAL_BOOKINGS
   const saved = localStorage.getItem('abh_package_bookings')
   return saved ? JSON.parse(saved) : INITIAL_BOOKINGS
 }
 
 export function savePackageBookings(bookings: PackageBooking[]) {
+  if (isSupabaseConfigured && supabase) return
   if (typeof window !== 'undefined') {
     localStorage.setItem('abh_package_bookings', JSON.stringify(bookings))
   }
