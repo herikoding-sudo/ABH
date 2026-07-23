@@ -5,6 +5,7 @@ export type MatrixNode = {
   email: string
   role: string
   isUser?: boolean
+  stars?: number
 } | null
 
 export type Transaction = {
@@ -126,49 +127,103 @@ export function getMatrixStateForEmail(email: string): MatrixState {
   }
 
   const saved = localStorage.getItem(`abh_matrix_state_${email}`)
+  let state: MatrixState
   if (saved) {
-    const parsed = JSON.parse(saved)
-    if (!parsed.settings) parsed.settings = DEFAULT_SETTINGS
-    if (!parsed.depositRequests) parsed.depositRequests = INITIAL_DEPOSIT_REQUESTS
-    return parsed
+    state = JSON.parse(saved)
+    if (!state.settings) state.settings = DEFAULT_SETTINGS
+    if (!state.depositRequests) state.depositRequests = INITIAL_DEPOSIT_REQUESTS
+  } else {
+    const isHeri = email.toLowerCase() === 'heri@abh.com'
+    const initialFly1 = isHeri
+      ? [
+          { name: 'Heri', email: 'heri@abh.com', role: 'member', isUser: true },
+          null, null, null, null, null, null
+        ]
+      : INITIAL_FLY1_BOARD
+
+    const initialFly2 = isHeri
+      ? [
+          { name: 'Heri', email: 'heri@abh.com', role: 'member', isUser: true },
+          ...Array.from({ length: 14 }).map(() => null)
+        ]
+      : INITIAL_FLY2_BOARD
+
+    state = {
+      balance: 0,
+      downlinesCount: 0,
+      fly1Board: initialFly1,
+      fly2Board: initialFly2,
+      transactions: [
+        {
+          id: 'tx_init',
+          date: new Date().toLocaleDateString('id-ID'),
+          type: 'deposit',
+          amount: -2500000,
+          description: 'Setoran Awal Registrasi Member Umroh',
+        },
+      ],
+      hasCompletedFly1: false,
+      hasCompletedFly2: false,
+      settings: DEFAULT_SETTINGS,
+      depositRequests: INITIAL_DEPOSIT_REQUESTS,
+    }
+    localStorage.setItem(`abh_matrix_state_${email}`, JSON.stringify(state))
   }
 
-  const isHeri = email.toLowerCase() === 'heri@abh.com'
-  const initialFly1 = isHeri
-    ? [
-        { name: 'Heri', email: 'heri@abh.com', role: 'member', isUser: true },
-        null, null, null, null, null, null
-      ]
-    : INITIAL_FLY1_BOARD
+  // Local display sharing logic: Check if they are on any other active board
+  let parentFly1Board = null
+  let parentFly2Board = null
 
-  const initialFly2 = isHeri
-    ? [
-        { name: 'Heri', email: 'heri@abh.com', role: 'member', isUser: true },
-        ...Array.from({ length: 14 }).map(() => null)
-      ]
-    : INITIAL_FLY2_BOARD
-
-  const initialState: MatrixState = {
-    balance: 0,
-    downlinesCount: 0,
-    fly1Board: initialFly1,
-    fly2Board: initialFly2,
-    transactions: [
-      {
-        id: 'tx_init',
-        date: new Date().toLocaleDateString('id-ID'),
-        type: 'deposit',
-        amount: -2500000,
-        description: 'Setoran Awal Registrasi Member Umroh',
-      },
-    ],
-    hasCompletedFly1: false,
-    hasCompletedFly2: false,
-    settings: DEFAULT_SETTINGS,
-    depositRequests: INITIAL_DEPOSIT_REQUESTS,
+  for (let i = 0; i < localStorage.length; i++) {
+    const key = localStorage.key(i)
+    if (key && key.startsWith('abh_matrix_state_')) {
+      const parentEmail = key.replace('abh_matrix_state_', '')
+      if (parentEmail.toLowerCase() !== email.toLowerCase()) {
+        const parentStateStr = localStorage.getItem(key)
+        if (parentStateStr) {
+          const parentState = JSON.parse(parentStateStr) as MatrixState
+          
+          if (!parentState.hasCompletedFly1) {
+            const isOnParentFly1 = parentState.fly1Board.some(n => n && n.email.toLowerCase() === email.toLowerCase())
+            if (isOnParentFly1) {
+              parentFly1Board = parentState.fly1Board
+            }
+          }
+          
+          if (!parentState.hasCompletedFly2) {
+            const isOnParentFly2 = parentState.fly2Board.some(n => n && n.email.toLowerCase() === email.toLowerCase())
+            if (isOnParentFly2) {
+              parentFly2Board = parentState.fly2Board
+            }
+          }
+        }
+      }
+    }
   }
-  localStorage.setItem(`abh_matrix_state_${email}`, JSON.stringify(initialState))
-  return initialState
+
+  if (parentFly1Board) state.fly1Board = parentFly1Board
+  if (parentFly2Board) state.fly2Board = parentFly2Board
+
+  // Populate stars from local states
+  const populateStarsForBoard = (board: MatrixNode[]) => {
+    return board.map(n => {
+      if (n && n.email) {
+        const memberSaved = localStorage.getItem(`abh_matrix_state_${n.email}`)
+        if (memberSaved) {
+          const mState = JSON.parse(memberSaved) as MatrixState
+          return { ...n, stars: mState.downlinesCount || 0 }
+        }
+        // Fallback for mock users
+        if (n.email === 'member@abh.com') return { ...n, stars: 2 }
+      }
+      return n
+    })
+  }
+
+  state.fly1Board = populateStarsForBoard(state.fly1Board)
+  state.fly2Board = populateStarsForBoard(state.fly2Board)
+
+  return state
 }
 
 export function getMatrixState(): MatrixState {
@@ -212,6 +267,164 @@ export function submitDepositRequest(name: string, email: string, sponsorEmail: 
 }
 
 // ----------------------------------------------------
+export async function getActiveBoardOwnerAsync(email: string, boardType: 'fly1' | 'fly2'): Promise<string> {
+  if (!isSupabaseConfigured || !supabase) {
+    // Local storage fallback
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i)
+      if (key && key.startsWith('abh_matrix_state_')) {
+        const parentEmail = key.replace('abh_matrix_state_', '')
+        if (parentEmail.toLowerCase() !== email.toLowerCase()) {
+          const parentStateStr = localStorage.getItem(key)
+          if (parentStateStr) {
+            const parentState = JSON.parse(parentStateStr) as MatrixState
+            const isCompleted = boardType === 'fly1' ? parentState.hasCompletedFly1 : parentState.hasCompletedFly2
+            if (!isCompleted) {
+              const isOnParent = boardType === 'fly1'
+                ? parentState.fly1Board.some(n => n && n.email.toLowerCase() === email.toLowerCase())
+                : parentState.fly2Board.some(n => n && n.email.toLowerCase() === email.toLowerCase())
+              if (isOnParent) {
+                return parentEmail
+              }
+            }
+          }
+        }
+      }
+    }
+    return email
+  }
+
+  try {
+    const { data: parentNodes } = await supabase
+      .from('matrix_nodes')
+      .select('member_email')
+      .eq('email', email)
+      .eq('board_type', boardType)
+      .neq('member_email', email)
+
+    if (parentNodes && parentNodes.length > 0) {
+      const ownerEmails = parentNodes.map(p => p.member_email)
+      const { data: ownersStatus } = await supabase
+        .from('member_matrix')
+        .select('email, has_completed_fly1, has_completed_fly2')
+        .in('email', ownerEmails)
+
+      if (ownersStatus) {
+        const activeOwner = parentNodes.find(p => {
+          const status = ownersStatus.find(s => s.email.toLowerCase() === p.member_email.toLowerCase())
+          if (!status) return false
+          return boardType === 'fly1' ? !status.has_completed_fly1 : !status.has_completed_fly2
+        })
+        if (activeOwner) {
+          return activeOwner.member_email
+        }
+      }
+    }
+  } catch (err) {
+    console.error('Error finding active board owner:', err)
+  }
+  return email
+}
+
+export async function performFly1SplitAsync(boardOwnerEmail: string): Promise<void> {
+  if (!isSupabaseConfigured || !supabase) return
+
+  try {
+    // 1. Fetch all nodes of the board being split
+    const { data: nodes } = await supabase
+      .from('matrix_nodes')
+      .select('*')
+      .eq('member_email', boardOwnerEmail)
+      .eq('board_type', 'fly1')
+      .order('node_index')
+
+    if (!nodes || nodes.length < 7) return
+
+    // 2. Identify the 6 non-owner nodes (indices 1 to 6)
+    const candidateNodes = nodes.filter(n => n.node_index > 0 && n.email)
+    const candidateEmails = candidateNodes.map(n => n.email)
+
+    // 3. Fetch downline counts (stars) for these 6 candidates
+    const { data: candidatesDetails } = await supabase
+      .from('member_matrix')
+      .select('email, downlines_count')
+      .in('email', candidateEmails)
+
+    // Map candidate emails to stars & names
+    const emailToNode = new Map<string, typeof candidateNodes[0]>()
+    candidateNodes.forEach(n => {
+      if (n.email) emailToNode.set(n.email.toLowerCase(), n)
+    })
+
+    const candidatesWithStars = candidateEmails.map(email => {
+      const details = candidatesDetails?.find(c => c.email.toLowerCase() === email.toLowerCase())
+      const stars = details ? details.downlines_count : 0
+      const node = emailToNode.get(email.toLowerCase())
+      return {
+        email,
+        name: node ? node.name : '',
+        stars,
+      }
+    })
+
+    // Sort by stars descending
+    candidatesWithStars.sort((a, b) => b.stars - a.stars)
+
+    // Top 2 become the new board owners (leaders)
+    const leaderA = candidatesWithStars[0] || null
+    const leaderB = candidatesWithStars[1] || null
+
+    // Remaining 4 become the wings
+    const wing1 = candidatesWithStars[2] || null
+    const wing2 = candidatesWithStars[3] || null
+    const wing3 = candidatesWithStars[4] || null
+    const wing4 = candidatesWithStars[5] || null
+
+    // 4. Reset/delete old board nodes for boardOwnerEmail
+    await supabase
+      .from('matrix_nodes')
+      .delete()
+      .eq('member_email', boardOwnerEmail)
+      .eq('board_type', 'fly1')
+
+    // 5. Seed Leader A's board
+    if (leaderA) {
+      // Delete any existing fly1 nodes for Leader A to avoid duplicate key conflicts
+      await supabase.from('matrix_nodes').delete().eq('member_email', leaderA.email).eq('board_type', 'fly1')
+      
+      const seedA = [
+        { member_email: leaderA.email, board_type: 'fly1', node_index: 0, name: leaderA.name, email: leaderA.email, is_user: true },
+        { member_email: leaderA.email, board_type: 'fly1', node_index: 1, name: wing1 ? wing1.name : null, email: wing1 ? wing1.email : null, is_user: false },
+        { member_email: leaderA.email, board_type: 'fly1', node_index: 2, name: wing2 ? wing2.name : null, email: wing2 ? wing2.email : null, is_user: false },
+        { member_email: leaderA.email, board_type: 'fly1', node_index: 3, name: null, email: null, is_user: false },
+        { member_email: leaderA.email, board_type: 'fly1', node_index: 4, name: null, email: null, is_user: false },
+        { member_email: leaderA.email, board_type: 'fly1', node_index: 5, name: null, email: null, is_user: false },
+        { member_email: leaderA.email, board_type: 'fly1', node_index: 6, name: null, email: null, is_user: false },
+      ]
+      await supabase.from('matrix_nodes').insert(seedA)
+    }
+
+    // 6. Seed Leader B's board
+    if (leaderB) {
+      // Delete any existing fly1 nodes for Leader B to avoid duplicate key conflicts
+      await supabase.from('matrix_nodes').delete().eq('member_email', leaderB.email).eq('board_type', 'fly1')
+      
+      const seedB = [
+        { member_email: leaderB.email, board_type: 'fly1', node_index: 0, name: leaderB.name, email: leaderB.email, is_user: true },
+        { member_email: leaderB.email, board_type: 'fly1', node_index: 1, name: wing3 ? wing3.name : null, email: wing3 ? wing3.email : null, is_user: false },
+        { member_email: leaderB.email, board_type: 'fly1', node_index: 2, name: wing4 ? wing4.name : null, email: wing4 ? wing4.email : null, is_user: false },
+        { member_email: leaderB.email, board_type: 'fly1', node_index: 3, name: null, email: null, is_user: false },
+        { member_email: leaderB.email, board_type: 'fly1', node_index: 4, name: null, email: null, is_user: false },
+        { member_email: leaderB.email, board_type: 'fly1', node_index: 5, name: null, email: null, is_user: false },
+        { member_email: leaderB.email, board_type: 'fly1', node_index: 6, name: null, email: null, is_user: false },
+      ]
+      await supabase.from('matrix_nodes').insert(seedB)
+    }
+  } catch (err) {
+    console.error('Error splitting Fly I board:', err)
+  }
+}
+
 // Supabase Async Operations with Local fallback
 // ----------------------------------------------------
 
@@ -233,13 +446,13 @@ export async function fetchMatrixStateAsync(providedEmail?: string): Promise<Mat
     }
 
     // 2. Fetch member matrix details
-    const email = providedEmail || getActiveUserEmail()
+    const activeEmail = providedEmail || getActiveUserEmail()
     let balance = 0
     let downlinesCount = 0
     let hasCompletedFly1 = false
     let hasCompletedFly2 = false
 
-    const { data: memberData } = await supabase.from('member_matrix').select('*').eq('email', email).single()
+    const { data: memberData } = await supabase.from('member_matrix').select('*').eq('email', activeEmail).single()
     if (memberData) {
       balance = Number(memberData.balance)
       downlinesCount = memberData.downlines_count
@@ -247,58 +460,112 @@ export async function fetchMatrixStateAsync(providedEmail?: string): Promise<Mat
       hasCompletedFly2 = memberData.has_completed_fly2
     } else {
       // Create record
-      await supabase.from('member_matrix').insert({ email, balance: 0, downlines_count: 0 })
+      await supabase.from('member_matrix').insert({ email: activeEmail, balance: 0, downlines_count: 0 })
     }
+
+    // Determine shared board owners dynamically for Fly 1 and Fly 2 boards:
+    const boardEmailFly1 = await getActiveBoardOwnerAsync(activeEmail, 'fly1')
+    const boardEmailFly2 = await getActiveBoardOwnerAsync(activeEmail, 'fly2')
 
     // 3. Fetch nodes
     let fly1Board = [...INITIAL_FLY1_BOARD]
     let fly2Board = [...INITIAL_FLY2_BOARD]
 
-    const { data: nodesData } = await supabase.from('matrix_nodes').select('*').eq('member_email', email)
-    if (nodesData && nodesData.length > 0) {
-      // Initialize arrays
-      const fly1Arr = Array(7).fill(null)
-      const fly2Arr = Array(15).fill(null)
+    // Fetch Fly 1 nodes using boardEmailFly1
+    const { data: nodesDataFly1 } = await supabase
+      .from('matrix_nodes')
+      .select('*')
+      .eq('member_email', boardEmailFly1)
+      .eq('board_type', 'fly1')
 
-      nodesData.forEach((n) => {
-        const mappedNode = n.name ? { name: n.name, email: n.email, role: 'member', isUser: n.is_user } : null
-        if (n.board_type === 'fly1' && n.node_index < 7) {
-          fly1Arr[n.node_index] = mappedNode
-        } else if (n.board_type === 'fly2' && n.node_index < 15) {
-          fly2Arr[n.node_index] = mappedNode
+    if (nodesDataFly1 && nodesDataFly1.length > 0) {
+      const fly1Arr = Array(7).fill(null)
+      nodesDataFly1.forEach((n) => {
+        if (n.node_index < 7) {
+          fly1Arr[n.node_index] = n.name ? { name: n.name, email: n.email, role: 'member', isUser: n.is_user } : null
         }
       })
       fly1Board = fly1Arr
-      fly2Board = fly2Arr
     } else {
-      // Seed nodes
-      const seedPayload = [
-        ...INITIAL_FLY1_BOARD.map((item, idx) => ({
-          member_email: email,
-          board_type: 'fly1',
-          node_index: idx,
-          name: item?.name || null,
-          email: item?.email || null,
-          is_user: !!item?.isUser,
-        })),
-        ...INITIAL_FLY2_BOARD.map((item, idx) => ({
-          member_email: email,
-          board_type: 'fly2',
-          node_index: idx,
-          name: item?.name || null,
-          email: item?.email || null,
-          is_user: !!item?.isUser,
-        })),
-      ]
-      await supabase.from('matrix_nodes').insert(seedPayload)
+      // Seed Fly 1 nodes
+      const seedPayloadFly1 = INITIAL_FLY1_BOARD.map((item, idx) => ({
+        member_email: boardEmailFly1,
+        board_type: 'fly1',
+        node_index: idx,
+        name: item?.name || null,
+        email: item?.email || null,
+        is_user: !!item?.isUser,
+      }))
+      await supabase.from('matrix_nodes').insert(seedPayloadFly1)
     }
 
-    // 4. Fetch transactions
+    // Fetch Fly 2 nodes using boardEmailFly2
+    const { data: nodesDataFly2 } = await supabase
+      .from('matrix_nodes')
+      .select('*')
+      .eq('member_email', boardEmailFly2)
+      .eq('board_type', 'fly2')
+
+    if (nodesDataFly2 && nodesDataFly2.length > 0) {
+      const fly2Arr = Array(15).fill(null)
+      nodesDataFly2.forEach((n) => {
+        if (n.node_index < 15) {
+          fly2Arr[n.node_index] = n.name ? { name: n.name, email: n.email, role: 'member', isUser: n.is_user } : null
+        }
+      })
+      fly2Board = fly2Arr
+    } else {
+      // Seed Fly 2 nodes
+      const seedPayloadFly2 = INITIAL_FLY2_BOARD.map((item, idx) => ({
+        member_email: boardEmailFly2,
+        board_type: 'fly2',
+        node_index: idx,
+        name: item?.name || null,
+        email: item?.email || null,
+        is_user: !!item?.isUser,
+      }))
+      await supabase.from('matrix_nodes').insert(seedPayloadFly2)
+    }
+
+    // Fetch and populate stars (downlines_count) for all node emails
+    const allNodeEmails: string[] = []
+    fly1Board.forEach(n => { if (n && n.email) allNodeEmails.push(n.email) })
+    fly2Board.forEach(n => { if (n && n.email) allNodeEmails.push(n.email) })
+
+    if (allNodeEmails.length > 0) {
+      const { data: membersDetails } = await supabase
+        .from('member_matrix')
+        .select('email, downlines_count')
+        .in('email', allNodeEmails)
+
+      if (membersDetails) {
+        const emailToStars = new Map<string, number>()
+        membersDetails.forEach(m => {
+          emailToStars.set(m.email.toLowerCase(), m.downlines_count)
+        })
+
+        fly1Board = fly1Board.map(n => {
+          if (n && n.email) {
+            return { ...n, stars: emailToStars.get(n.email.toLowerCase()) || 0 }
+          }
+          return n
+        })
+
+        fly2Board = fly2Board.map(n => {
+          if (n && n.email) {
+            return { ...n, stars: emailToStars.get(n.email.toLowerCase()) || 0 }
+          }
+          return n
+        })
+      }
+    }
+
+    // 4. Fetch transactions for activeEmail
     let transactions: Transaction[] = []
     const { data: txsData } = await supabase
       .from('transactions')
       .select('*')
-      .eq('member_email', email)
+      .eq('member_email', activeEmail)
       .order('created_at', { ascending: false })
 
     if (txsData) {
@@ -528,6 +795,9 @@ export async function approveDepositRequestAsync(requestId: string): Promise<{ s
       await supabase.from('matrix_nodes').insert(recruitNodes)
     }
 
+    const activeBoardOwnerFly1 = await getActiveBoardOwnerAsync(email, 'fly1')
+    const activeBoardOwnerFly2 = await getActiveBoardOwnerAsync(email, 'fly2')
+
     // Calculate payouts
     const newBalance = state.balance + state.settings.sponsorReward
     const newDownlines = state.downlinesCount + 1
@@ -551,7 +821,7 @@ export async function approveDepositRequestAsync(requestId: string): Promise<{ s
         await supabase
           .from('matrix_nodes')
           .update({ name: requestData.recruit_name, email: requestData.recruit_email })
-          .eq('member_email', email)
+          .eq('member_email', activeBoardOwnerFly1)
           .eq('board_type', 'fly1')
           .eq('node_index', emptyIndex)
 
@@ -581,18 +851,8 @@ export async function approveDepositRequestAsync(requestId: string): Promise<{ s
             description: 'Bonus Pencairan Matriks Fly I (Pecah Belah Semangka)',
           })
 
-          // Reset nodes in Fly I database
-          await supabase.from('matrix_nodes').delete().eq('member_email', email).eq('board_type', 'fly1')
-          const seedFly1 = [
-            { member_email: email, board_type: 'fly1', node_index: 0, name: 'Diana', email: 'diana@email.com' },
-            { member_email: email, board_type: 'fly1', node_index: 1, name: 'Eko', email: 'eko@email.com' },
-            { member_email: email, board_type: 'fly1', node_index: 2, name: 'Fitri', email: 'fitri@email.com' },
-            { member_email: email, board_type: 'fly1', node_index: 3, name: null, email: null },
-            { member_email: email, board_type: 'fly1', node_index: 4, name: null, email: null },
-            { member_email: email, board_type: 'fly1', node_index: 5, name: null, email: null },
-            { member_email: email, board_type: 'fly1', node_index: 6, name: null, email: null },
-          ]
-          await supabase.from('matrix_nodes').insert(seedFly1)
+          // Perform real matrix split for Fly I
+          await performFly1SplitAsync(activeBoardOwnerFly1)
 
           placementMessage += ` Papan Fly I Penuh! Ujroh Fly I Rp ${state.settings.fly1Reward.toLocaleString('id-ID')} cair.`
         } else {
@@ -609,7 +869,7 @@ export async function approveDepositRequestAsync(requestId: string): Promise<{ s
         await supabase
           .from('matrix_nodes')
           .update({ name: requestData.recruit_name, email: requestData.recruit_email })
-          .eq('member_email', email)
+          .eq('member_email', activeBoardOwnerFly2)
           .eq('board_type', 'fly2')
           .eq('node_index', emptyIndex)
 
@@ -1017,13 +1277,16 @@ export async function initializeAndPlaceMemberAsync(recruitName: string, recruit
       description: `Ujroh Sponsor Kemitraan: ${recruitName}`,
     })
 
+    const activeBoardOwnerFly1 = await getActiveBoardOwnerAsync(sponsorEmail, 'fly1')
+    const activeBoardOwnerFly2 = await getActiveBoardOwnerAsync(sponsorEmail, 'fly2')
+
     if (!state.hasCompletedFly1) {
       const emptyIndex = state.fly1Board.findIndex((n) => n === null)
       if (emptyIndex !== -1) {
         await supabase
           .from('matrix_nodes')
           .update({ name: recruitName, email: recruitEmail })
-          .eq('member_email', sponsorEmail)
+          .eq('member_email', activeBoardOwnerFly1)
           .eq('board_type', 'fly1')
           .eq('node_index', emptyIndex)
 
@@ -1045,18 +1308,8 @@ export async function initializeAndPlaceMemberAsync(recruitName: string, recruit
             description: 'Bonus Pencairan Matriks Fly I (Pecah Belah Semangka)',
           })
 
-          // Reset nodes in Fly I database
-          await supabase.from('matrix_nodes').delete().eq('member_email', sponsorEmail).eq('board_type', 'fly1')
-          const seedFly1 = [
-            { member_email: sponsorEmail, board_type: 'fly1', node_index: 0, name: 'Diana', email: 'diana@email.com' },
-            { member_email: sponsorEmail, board_type: 'fly1', node_index: 1, name: 'Eko', email: 'eko@email.com' },
-            { member_email: sponsorEmail, board_type: 'fly1', node_index: 2, name: 'Fitri', email: 'fitri@email.com' },
-            { member_email: sponsorEmail, board_type: 'fly1', node_index: 3, name: null, email: null },
-            { member_email: sponsorEmail, board_type: 'fly1', node_index: 4, name: null, email: null },
-            { member_email: sponsorEmail, board_type: 'fly1', node_index: 5, name: null, email: null },
-            { member_email: sponsorEmail, board_type: 'fly1', node_index: 6, name: null, email: null },
-          ]
-          await supabase.from('matrix_nodes').insert(seedFly1)
+          // Perform real matrix split for Fly I
+          await performFly1SplitAsync(activeBoardOwnerFly1)
         } else {
           await supabase
             .from('member_matrix')
@@ -1070,7 +1323,7 @@ export async function initializeAndPlaceMemberAsync(recruitName: string, recruit
         await supabase
           .from('matrix_nodes')
           .update({ name: recruitName, email: recruitEmail })
-          .eq('member_email', sponsorEmail)
+          .eq('member_email', activeBoardOwnerFly2)
           .eq('board_type', 'fly2')
           .eq('node_index', emptyIndex)
 

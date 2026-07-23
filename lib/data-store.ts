@@ -485,10 +485,21 @@ export async function deleteUserAsync(email: string): Promise<{ success: boolean
   const localUsers = getSavedLocalUsers()
   const filtered = localUsers.filter((u) => u.email.toLowerCase() !== email.toLowerCase())
   saveLocalUsers(filtered)
+  if (typeof window !== 'undefined') {
+    localStorage.removeItem(`abh_matrix_state_${email}`)
+  }
 
   // 3. Delete from Supabase if configured
   if (isSupabaseConfigured && supabase) {
     try {
+      // Clean up all related matrix tables to ensure clean re-tests
+      await supabase.from('matrix_nodes').delete().eq('email', email)
+      await supabase.from('matrix_nodes').delete().eq('member_email', email)
+      await supabase.from('member_matrix').delete().eq('email', email)
+      await supabase.from('transactions').delete().eq('member_email', email)
+      await supabase.from('deposit_requests').delete().eq('recruit_email', email)
+      await supabase.from('deposit_requests').delete().eq('sponsor_email', email)
+
       const { error } = await supabase
         .from('user_accounts')
         .delete()

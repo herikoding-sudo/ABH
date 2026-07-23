@@ -46,7 +46,7 @@ function ScheduleCard({ s, whatsappUrl }: { s: Schedule; whatsappUrl: string }) 
         <h3 className="mt-2 text-lg font-bold text-foreground">{s.name}</h3>
 
         <div className="mt-3 flex flex-wrap gap-2">
-          {s.tags.map((t) => (
+          {s.tags?.map((t) => (
             <span
               key={t}
               className="inline-flex items-center gap-1 rounded-full bg-secondary px-2.5 py-1 text-[11px] font-medium text-secondary-foreground"

@@ -43,6 +43,13 @@ export function MatrixTree({ nodes, type, currentUserEmail }: TreeProps) {
         <span className={`text-[8px] uppercase font-bold tracking-wider ${isUser ? 'text-primary-foreground/80' : 'text-slate-400'}`}>
           {levelName}
         </span>
+        {node.stars !== undefined && node.stars > 0 && (
+          <div className="flex justify-center gap-0.5 mt-0.5">
+            {Array.from({ length: node.stars }).map((_, i) => (
+              <span key={i} className="text-yellow-400 text-[11px] leading-none drop-shadow-[0_1px_1.5px_rgba(0,0,0,0.25)]">★</span>
+            ))}
+          </div>
+        )}
       </div>
     )
   }
