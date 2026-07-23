@@ -117,7 +117,7 @@ export async function registerUserAsync(name: string, email: string, password: s
     password,
     role: 'member' as Role,
     name,
-    status: 'active',
+    status: isSupabaseConfigured ? 'pending' : 'active',
   }
 
   // 1. Save to local storage
@@ -133,9 +133,22 @@ export async function registerUserAsync(name: string, email: string, password: s
         password,
         role: 'member',
         name,
-        status: 'active',
+        status: 'pending',
       })
       if (error) throw error
+
+      // Automatically create a pending deposit request
+      const { error: depErr } = await supabase.from('deposit_requests').insert({
+        sponsor_email: sponsorEmail || 'member@abh.com',
+        recruit_name: name,
+        recruit_email: email,
+        amount: 2500000,
+        status: 'pending',
+        proof_image: '/images/proof-mock.png',
+        date_text: new Date().toLocaleDateString('id-ID'),
+      })
+      if (depErr) throw depErr
+
     } catch (err) {
       console.error('Error saving new user to Supabase:', err)
       return { success: false, message: 'Gagal mendaftarkan user di database.' }
@@ -155,7 +168,9 @@ export async function registerUserAsync(name: string, email: string, password: s
 
   return {
     success: true,
-    message: 'Pendaftaran berhasil! Silakan langsung masuk ke tab Login untuk masuk ke akun Anda.',
+    message: isSupabaseConfigured
+      ? 'Pendaftaran berhasil! Akun Anda sedang menunggu verifikasi setoran oleh admin.'
+      : 'Pendaftaran berhasil! Silakan langsung masuk ke tab Login untuk masuk ke akun Anda.',
   }
 }
 
