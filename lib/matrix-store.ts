@@ -755,7 +755,7 @@ export async function approveDepositRequestAsync(requestId: string): Promise<{ s
     const { data: requestData } = await supabase.from('deposit_requests').select('*').eq('id', requestId).single()
     if (!requestData) return { success: false, message: 'Request tidak ditemukan.', splitOccurred: false }
 
-    const email = requestData.sponsor_email || getActiveUserEmail()
+    const email = requestData.sponsor_email || 'member@abh.com'
     const state = await fetchMatrixStateAsync(email)
 
     // Update status to approved
@@ -817,13 +817,32 @@ export async function approveDepositRequestAsync(requestId: string): Promise<{ s
     if (!state.hasCompletedFly1) {
       const emptyIndex = state.fly1Board.findIndex((n) => n === null)
       if (emptyIndex !== -1) {
-        // Place node in database
-        await supabase
+        // Place node in database (check if exists to avoid blank/unplaced nodes)
+        const { data: existingNode } = await supabase
           .from('matrix_nodes')
-          .update({ name: requestData.recruit_name, email: requestData.recruit_email })
+          .select('id')
           .eq('member_email', activeBoardOwnerFly1)
           .eq('board_type', 'fly1')
           .eq('node_index', emptyIndex)
+          .maybeSingle()
+
+        if (existingNode) {
+          await supabase
+            .from('matrix_nodes')
+            .update({ name: requestData.recruit_name, email: requestData.recruit_email })
+            .eq('id', existingNode.id)
+        } else {
+          await supabase
+            .from('matrix_nodes')
+            .insert({
+              member_email: activeBoardOwnerFly1,
+              board_type: 'fly1',
+              node_index: emptyIndex,
+              name: requestData.recruit_name,
+              email: requestData.recruit_email,
+              is_user: false
+            })
+        }
 
         state.fly1Board[emptyIndex] = { name: requestData.recruit_name, email: requestData.recruit_email, role: 'member' }
         const isFull = state.fly1Board.every((n) => n !== null)
@@ -866,12 +885,32 @@ export async function approveDepositRequestAsync(requestId: string): Promise<{ s
     } else if (!state.hasCompletedFly2) {
       const emptyIndex = state.fly2Board.findIndex((n) => n === null)
       if (emptyIndex !== -1) {
-        await supabase
+        // Place node in database (check if exists to avoid blank/unplaced nodes)
+        const { data: existingNode } = await supabase
           .from('matrix_nodes')
-          .update({ name: requestData.recruit_name, email: requestData.recruit_email })
+          .select('id')
           .eq('member_email', activeBoardOwnerFly2)
           .eq('board_type', 'fly2')
           .eq('node_index', emptyIndex)
+          .maybeSingle()
+
+        if (existingNode) {
+          await supabase
+            .from('matrix_nodes')
+            .update({ name: requestData.recruit_name, email: requestData.recruit_email })
+            .eq('id', existingNode.id)
+        } else {
+          await supabase
+            .from('matrix_nodes')
+            .insert({
+              member_email: activeBoardOwnerFly2,
+              board_type: 'fly2',
+              node_index: emptyIndex,
+              name: requestData.recruit_name,
+              email: requestData.recruit_email,
+              is_user: false
+            })
+        }
 
         state.fly2Board[emptyIndex] = { name: requestData.recruit_name, email: requestData.recruit_email, role: 'member' }
         const isFull = state.fly2Board.every((n) => n !== null)
