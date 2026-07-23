@@ -2329,13 +2329,24 @@ export default function DashboardPage() {
                   )}
 
                   {isEditable && (
-                    <button
-                      type="submit"
-                      className="flex items-center gap-2 rounded-xl bg-primary px-5 py-3 text-sm font-semibold text-primary-foreground shadow-md hover:bg-primary/95 transition-all mt-4"
-                    >
-                      <Save className="size-4" />
-                      Simpan Seluruh Pengaturan
-                    </button>
+                    <div className="flex flex-wrap items-center gap-4 pt-4 border-t border-slate-100">
+                      <button
+                        type="submit"
+                        className="flex items-center gap-2 rounded-xl bg-primary px-5 py-3 text-sm font-semibold text-primary-foreground shadow-md hover:bg-primary/95 transition-all"
+                      >
+                        <Save className="size-4" />
+                        Simpan Seluruh Pengaturan
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={handleResetSimulation}
+                        className="flex items-center gap-2 rounded-xl bg-rose-600 px-5 py-3 text-sm font-semibold text-white shadow-md hover:bg-rose-700 transition-all sm:ml-auto"
+                      >
+                        <RefreshCw className="size-4" />
+                        Reset Simulasi Jaringan
+                      </button>
+                    </div>
                   )}
                 </form>
               )}
