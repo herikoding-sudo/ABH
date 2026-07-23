@@ -398,8 +398,12 @@ export function savePhone(phone: string) {
 }
 
 export function getSavedWhatsappUrl(): string {
-  if (typeof window === 'undefined') return WHATSAPP_URL
-  return localStorage.getItem('abh_whatsappUrl') || WHATSAPP_URL
+  const phone = getSavedPhone()
+  let cleanNumber = phone.replace(/[^0-9]/g, '')
+  if (cleanNumber.startsWith('0')) {
+    cleanNumber = '62' + cleanNumber.substring(1)
+  }
+  return `https://wa.me/${cleanNumber}?text=Halo%20Amanah%20Berkah%20Haromain,%20saya%20ingin%20konsultasi%20gratis%20paket%20umroh.`
 }
 
 export async function fetchSettingsAsync(): Promise<{ phone: string }> {
