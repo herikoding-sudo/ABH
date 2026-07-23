@@ -388,7 +388,10 @@ export function getSavedPhone(): string {
 export function savePhone(phone: string) {
   if (typeof window !== 'undefined') {
     localStorage.setItem('abh_phone', phone)
-    const cleanNumber = phone.replace(/[^0-9]/g, '')
+    let cleanNumber = phone.replace(/[^0-9]/g, '')
+    if (cleanNumber.startsWith('0')) {
+      cleanNumber = '62' + cleanNumber.substring(1)
+    }
     const dynamicUrl = `https://wa.me/${cleanNumber}?text=Halo%20Amanah%20Berkah%20Haromain,%20saya%20ingin%20konsultasi%20gratis%20paket%20umroh.`
     localStorage.setItem('abh_whatsappUrl', dynamicUrl)
   }

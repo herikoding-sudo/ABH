@@ -7,7 +7,10 @@ import { type Package } from '@/lib/data'
 import { getSavedPackages, getSavedPhone, fetchPackagesAsync, fetchSettingsAsync, getSession } from '@/lib/data-store'
 
 function PackageCard({ p, phone }: { p: Package; phone: string }) {
-  const cleanNumber = phone.replace(/[^0-9]/g, '')
+  let cleanNumber = phone.replace(/[^0-9]/g, '')
+  if (cleanNumber.startsWith('0')) {
+    cleanNumber = '62' + cleanNumber.substring(1)
+  }
   const waUrl = `https://wa.me/${cleanNumber}?text=Halo%20Amanah%20Berkah%20Haromain,%20saya%2520tertarik%20dengan%20${encodeURIComponent(p.name)}%20harga%20${encodeURIComponent(p.price)}.`
 
   const handleRegisterClick = (e: React.MouseEvent) => {
