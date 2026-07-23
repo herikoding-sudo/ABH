@@ -112,6 +112,20 @@ export function getActiveUserEmail(): string {
 }
 
 export function getMatrixStateForEmail(email: string): MatrixState {
+  if (isSupabaseConfigured && supabase) {
+    return {
+      balance: 0,
+      downlinesCount: 0,
+      fly1Board: INITIAL_FLY1_BOARD,
+      fly2Board: INITIAL_FLY2_BOARD,
+      transactions: [],
+      hasCompletedFly1: false,
+      hasCompletedFly2: false,
+      settings: DEFAULT_SETTINGS,
+      depositRequests: INITIAL_DEPOSIT_REQUESTS,
+    }
+  }
+
   if (typeof window === 'undefined') {
     return {
       balance: 0,
@@ -232,6 +246,7 @@ export function getMatrixState(): MatrixState {
 }
 
 export function saveMatrixStateForEmail(email: string, state: MatrixState) {
+  if (isSupabaseConfigured && supabase) return
   if (typeof window !== 'undefined') {
     localStorage.setItem(`abh_matrix_state_${email}`, JSON.stringify(state))
   }
