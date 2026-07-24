@@ -32,23 +32,23 @@ export function MatrixTree({ nodes, type, currentUserEmail }: TreeProps) {
     return (
       <div
         key={index}
-        className={`flex flex-col items-center justify-center rounded-2xl p-3 text-center transition-all duration-350 shadow-md size-24 shrink-0 ring-1 ring-black/5 hover:-translate-y-1 hover:shadow-lg z-10 ${
+        className={`flex flex-col items-center justify-center rounded-2xl p-2 text-center transition-all duration-350 shadow-md w-24 h-24 shrink-0 ring-1 ring-black/5 hover:-translate-y-1 hover:shadow-lg z-10 ${
           isUser
             ? 'bg-gradient-to-br from-blue-600 to-indigo-700 text-primary-foreground font-extrabold border border-blue-400/30 ring-4 ring-blue-500/20 scale-105'
             : 'bg-gradient-to-br from-white to-slate-50 text-slate-800 border border-slate-200 hover:border-blue-400'
         }`}
       >
-        <div className={`p-2 rounded-full ${isUser ? 'bg-white/20 text-white' : 'bg-blue-50 text-blue-600'}`}>
-          <User className="size-4.5" />
+        <div className={`p-1.5 rounded-full shrink-0 ${isUser ? 'bg-white/20 text-white' : 'bg-blue-50 text-blue-600'}`}>
+          <User className="size-4" />
         </div>
-        <span className="mt-1 block max-w-full truncate text-[9.5px] font-bold" title={node.name}>
+        <span className="mt-0.5 block max-w-full truncate text-[9.5px] font-bold shrink-0" title={node.name}>
           {node.name}
         </span>
-        <span className={`text-[7.5px] uppercase font-bold tracking-wider ${isUser ? 'text-blue-200' : 'text-slate-400'}`}>
+        <span className={`text-[7.5px] uppercase font-bold tracking-wider shrink-0 ${isUser ? 'text-blue-200' : 'text-slate-400'}`}>
           {levelName}
         </span>
         {node.stars !== undefined && node.stars > 0 && (
-          <div className={`mt-1 flex justify-center gap-0.5 rounded-full px-1.5 py-0.5 ${
+          <div className={`mt-0.5 flex justify-center gap-0.5 rounded-full px-1.5 py-0.5 shrink-0 ${
             isUser ? 'bg-white/10' : 'bg-slate-100'
           }`}>
             {Array.from({ length: node.stars }).map((_, i) => (
