@@ -15,7 +15,6 @@ export type DynamicUser = User & {
 }
 
 export const MOCK_USERS: DynamicUser[] = [
-  { email: 'member@abh.com', password: 'member123', role: 'member' as Role, name: 'Ahmad (Member)', status: 'active' },
   { email: 'admin@abh.com', password: 'admin123', role: 'admin' as Role, name: 'Budi (Admin)', status: 'active' },
   { email: 'superadmin@abh.com', password: 'super123', role: 'superadmin' as Role, name: 'Siti (Superadmin)', status: 'active' },
 ]
@@ -139,7 +138,7 @@ export async function registerUserAsync(name: string, email: string, password: s
 
       // Automatically create a pending deposit request
       const { error: depErr } = await supabase.from('deposit_requests').insert({
-        sponsor_email: sponsorEmail || 'member@abh.com',
+        sponsor_email: sponsorEmail || null,
         recruit_name: name,
         recruit_email: email,
         amount: 2500000,
@@ -158,7 +157,7 @@ export async function registerUserAsync(name: string, email: string, password: s
   // 3. Initialize and place member in the matrix tree dynamically
   try {
     const { initializeAndPlaceMemberAsync } = await import('./matrix-store')
-    const placementRes = await initializeAndPlaceMemberAsync(name, email, sponsorEmail || 'member@abh.com')
+    const placementRes = await initializeAndPlaceMemberAsync(name, email, sponsorEmail || undefined)
     if (!placementRes.success) {
       return { success: false, message: placementRes.message }
     }

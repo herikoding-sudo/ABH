@@ -856,8 +856,17 @@ export async function approveDepositRequestAsync(requestId: string): Promise<{ s
     const { data: requestData } = await supabase.from('deposit_requests').select('*').eq('id', requestId).single()
     if (!requestData) return { success: false, message: 'Request tidak ditemukan.', splitOccurred: false }
 
-    const email = requestData.sponsor_email || 'admin@abh.com'
-    const state = await fetchMatrixStateAsync(email)
+    const sponsorEmail = requestData.sponsor_email
+    let isSponsorValid = false
+    if (sponsorEmail && 
+        sponsorEmail.toLowerCase() !== 'admin@abh.com' && 
+        sponsorEmail.toLowerCase() !== 'superadmin@abh.com' &&
+        sponsorEmail.toLowerCase() !== 'member@abh.com') {
+      const { data: sponsorAcc } = await supabase.from('user_accounts').select('email').eq('email', sponsorEmail).maybeSingle()
+      if (sponsorAcc) {
+        isSponsorValid = true
+      }
+    }
 
     // Update status to approved ONLY if it is currently pending (atomic check)
     const { data: updateRes } = await supabase
@@ -907,190 +916,194 @@ export async function approveDepositRequestAsync(requestId: string): Promise<{ s
       await supabase.from('matrix_nodes').insert(recruitNodes)
     }
 
-    const activeBoardOwnerFly1 = await getActiveBoardOwnerAsync(email, 'fly1')
-
-    // 1. Credit the SPONSOR with sponsor reward and +1 downline count (stars)
-    const newBalance = state.balance + state.settings.sponsorReward
-    const newDownlines = state.downlinesCount + 1
-
-    await supabase
-      .from('member_matrix')
-      .update({ balance: newBalance, downlines_count: newDownlines })
-      .eq('email', email)
-
-    await supabase.from('transactions').insert({
-      member_email: email,
-      date_text: new Date().toLocaleDateString('id-ID'),
-      tx_type: 'sponsor',
-      amount: state.settings.sponsorReward,
-      description: `Ujroh Sponsor Kemitraan: ${requestData.recruit_name}`,
-    })
-
     let splitOccurred = false
     let placementMessage = `Pendaftaran ${requestData.recruit_name} disetujui!`
 
-    // 2. Fetch active board of activeBoardOwnerFly1 to find the empty index
-    const { data: currentFly1Nodes } = await supabase
-      .from('matrix_nodes')
-      .select('*')
-      .eq('member_email', activeBoardOwnerFly1)
-      .eq('board_type', 'fly1')
-      .order('node_index')
+    // Only run sponsor placement if sponsor is valid
+    if (isSponsorValid && sponsorEmail) {
+      const state = await fetchMatrixStateAsync(sponsorEmail)
+      const activeBoardOwnerFly1 = await getActiveBoardOwnerAsync(sponsorEmail, 'fly1')
 
-    const fly1Arr = Array(7).fill(null)
-    if (currentFly1Nodes) {
-      currentFly1Nodes.forEach(n => {
-        if (n.node_index < 7) {
-          fly1Arr[n.node_index] = n.email || null
-        }
+      // Credit the SPONSOR with sponsor reward and +1 downline count (stars)
+      const newBalance = state.balance + state.settings.sponsorReward
+      const newDownlines = state.downlinesCount + 1
+
+      await supabase
+        .from('member_matrix')
+        .update({ balance: newBalance, downlines_count: newDownlines })
+        .eq('email', sponsorEmail)
+
+      await supabase.from('transactions').insert({
+        member_email: sponsorEmail,
+        date_text: new Date().toLocaleDateString('id-ID'),
+        tx_type: 'sponsor',
+        amount: state.settings.sponsorReward,
+        description: `Ujroh Sponsor Kemitraan: ${requestData.recruit_name}`,
       })
-    }
 
-    const emptyIndex = fly1Arr.findIndex(n => n === null)
-
-    if (emptyIndex !== -1) {
-      // Place node in database
-      const { data: existingNode } = await supabase
+      // Fetch active board of activeBoardOwnerFly1 to find the empty index
+      const { data: currentFly1Nodes } = await supabase
         .from('matrix_nodes')
-        .select('id')
+        .select('*')
         .eq('member_email', activeBoardOwnerFly1)
         .eq('board_type', 'fly1')
-        .eq('node_index', emptyIndex)
-        .maybeSingle()
+        .order('node_index')
 
-      if (existingNode) {
-        await supabase
-          .from('matrix_nodes')
-          .update({ name: requestData.recruit_name, email: requestData.recruit_email })
-          .eq('id', existingNode.id)
-      } else {
-        await supabase
-          .from('matrix_nodes')
-          .insert({
-            member_email: activeBoardOwnerFly1,
-            board_type: 'fly1',
-            node_index: emptyIndex,
-            name: requestData.recruit_name,
-            email: requestData.recruit_email,
-            is_user: false
-          })
+      const fly1Arr = Array(7).fill(null)
+      if (currentFly1Nodes) {
+        currentFly1Nodes.forEach(n => {
+          if (n.node_index < 7) {
+            fly1Arr[n.node_index] = n.email || null
+          }
+        })
       }
 
-      fly1Arr[emptyIndex] = requestData.recruit_email
-      const isFull = fly1Arr.every((n) => n !== null)
+      const emptyIndex = fly1Arr.findIndex(n => n === null)
 
-      if (isFull) {
-        splitOccurred = true
-
-        // A. Credit the BOARD OWNER (activeBoardOwnerFly1) with fly1Reward
-        const { data: ownerMatrix } = await supabase
-          .from('member_matrix')
-          .select('balance')
-          .eq('email', activeBoardOwnerFly1)
-          .single()
-
-        const ownerNewBalance = (ownerMatrix ? Number(ownerMatrix.balance) : 0) + state.settings.fly1Reward
-        await supabase
-          .from('member_matrix')
-          .update({ balance: ownerNewBalance, has_completed_fly1: true })
-          .eq('email', activeBoardOwnerFly1)
-
-        await supabase.from('transactions').insert({
-          member_email: activeBoardOwnerFly1,
-          date_text: new Date().toLocaleDateString('id-ID'),
-          tx_type: 'fly1',
-          amount: state.settings.fly1Reward,
-          description: 'Bonus Pencairan Matriks Fly I (Pecah Belah Semangka)',
-        })
-
-        // B. Place the graduating board owner into Fly II on their sponsor's board!
-        const ownerSponsor = await getSponsorEmailAsync(activeBoardOwnerFly1)
-        const activeBoardOwnerFly2 = await getActiveBoardOwnerAsync(ownerSponsor, 'fly2')
-
-        // Fetch active boardowner name
-        const { data: ownerAcc } = await supabase.from('user_accounts').select('name').eq('email', activeBoardOwnerFly1).single()
-        const ownerName = ownerAcc ? ownerAcc.name : activeBoardOwnerFly1
-
-        // Find empty index in activeBoardOwnerFly2's Fly II board
-        const { data: currentFly2Nodes } = await supabase
+      if (emptyIndex !== -1) {
+        // Place node in database
+        const { data: existingNode } = await supabase
           .from('matrix_nodes')
-          .select('*')
-          .eq('member_email', activeBoardOwnerFly2)
-          .eq('board_type', 'fly2')
-          .order('node_index')
+          .select('id')
+          .eq('member_email', activeBoardOwnerFly1)
+          .eq('board_type', 'fly1')
+          .eq('node_index', emptyIndex)
+          .maybeSingle()
 
-        const fly2Arr = Array(15).fill(null)
-        if (currentFly2Nodes) {
-          currentFly2Nodes.forEach(n => {
-            if (n.node_index < 15) {
-              fly2Arr[n.node_index] = n.email || null
-            }
-          })
+        if (existingNode) {
+          await supabase
+            .from('matrix_nodes')
+            .update({ name: requestData.recruit_name, email: requestData.recruit_email })
+            .eq('id', existingNode.id)
+        } else {
+          await supabase
+            .from('matrix_nodes')
+            .insert({
+              member_email: activeBoardOwnerFly1,
+              board_type: 'fly1',
+              node_index: emptyIndex,
+              name: requestData.recruit_name,
+              email: requestData.recruit_email,
+              is_user: false
+            })
         }
 
-        const emptyIndexFly2 = fly2Arr.findIndex(n => n === null)
+        fly1Arr[emptyIndex] = requestData.recruit_email
+        const isFull = fly1Arr.every((n) => n !== null)
 
-        if (emptyIndexFly2 !== -1) {
-          const { data: existingNodeFly2 } = await supabase
+        if (isFull) {
+          splitOccurred = true
+
+          // A. Credit the BOARD OWNER (activeBoardOwnerFly1) with fly1Reward
+          const { data: ownerMatrix } = await supabase
+            .from('member_matrix')
+            .select('balance')
+            .eq('email', activeBoardOwnerFly1)
+            .single()
+
+          const ownerNewBalance = (ownerMatrix ? Number(ownerMatrix.balance) : 0) + state.settings.fly1Reward
+          await supabase
+            .from('member_matrix')
+            .update({ balance: ownerNewBalance, has_completed_fly1: true })
+            .eq('email', activeBoardOwnerFly1)
+
+          await supabase.from('transactions').insert({
+            member_email: activeBoardOwnerFly1,
+            date_text: new Date().toLocaleDateString('id-ID'),
+            tx_type: 'fly1',
+            amount: state.settings.fly1Reward,
+            description: 'Bonus Pencairan Matriks Fly I (Pecah Belah Semangka)',
+          })
+
+          // B. Place the graduating board owner into Fly II on their sponsor's board!
+          const ownerSponsor = await getSponsorEmailAsync(activeBoardOwnerFly1)
+          const activeBoardOwnerFly2 = await getActiveBoardOwnerAsync(ownerSponsor, 'fly2')
+
+          // Fetch active boardowner name
+          const { data: ownerAcc } = await supabase.from('user_accounts').select('name').eq('email', activeBoardOwnerFly1).single()
+          const ownerName = ownerAcc ? ownerAcc.name : activeBoardOwnerFly1
+
+          // Find empty index in activeBoardOwnerFly2's Fly II board
+          const { data: currentFly2Nodes } = await supabase
             .from('matrix_nodes')
-            .select('id')
+            .select('*')
             .eq('member_email', activeBoardOwnerFly2)
             .eq('board_type', 'fly2')
-            .eq('node_index', emptyIndexFly2)
-            .maybeSingle()
+            .order('node_index')
 
-          if (existingNodeFly2) {
-            await supabase
-              .from('matrix_nodes')
-              .update({ name: ownerName, email: activeBoardOwnerFly1 })
-              .eq('id', existingNodeFly2.id)
-          } else {
-            await supabase
-              .from('matrix_nodes')
-              .insert({
-                member_email: activeBoardOwnerFly2,
-                board_type: 'fly2',
-                node_index: emptyIndexFly2,
-                name: ownerName,
-                email: activeBoardOwnerFly1,
-                is_user: false
-              })
-          }
-
-          fly2Arr[emptyIndexFly2] = activeBoardOwnerFly1
-          const isFly2Full = fly2Arr.every(n => n !== null)
-
-          if (isFly2Full) {
-            // C. activeBoardOwnerFly2 completes Fly II!
-            const { data: leader2Matrix } = await supabase
-              .from('member_matrix')
-              .select('balance')
-              .eq('email', activeBoardOwnerFly2)
-              .single()
-
-            const leader2NewBalance = (leader2Matrix ? Number(leader2Matrix.balance) : 0) + state.settings.fly2Reward
-            await supabase
-              .from('member_matrix')
-              .update({ balance: leader2NewBalance, has_completed_fly2: true })
-              .eq('email', activeBoardOwnerFly2)
-
-            await supabase.from('transactions').insert({
-              member_email: activeBoardOwnerFly2,
-              date_text: new Date().toLocaleDateString('id-ID'),
-              tx_type: 'fly2',
-              amount: state.settings.fly2Reward,
-              description: 'Bonus Pencairan Matriks Fly II (Fly Utama)',
+          const fly2Arr = Array(15).fill(null)
+          if (currentFly2Nodes) {
+            currentFly2Nodes.forEach(n => {
+              if (n.node_index < 15) {
+                fly2Arr[n.node_index] = n.email || null
+              }
             })
-
-            // Split Fly II board
-            await performFly2SplitAsync(activeBoardOwnerFly2)
-            placementMessage += ` Papan Fly II Penuh! Ujroh Fly II Rp ${state.settings.fly2Reward.toLocaleString('id-ID')} cair!`
           }
-        }
 
-        // C. Split Fly I board
-        await performFly1SplitAsync(activeBoardOwnerFly1)
-        placementMessage += ` Papan Fly I Penuh! Ujroh Fly I Rp ${state.settings.fly1Reward.toLocaleString('id-ID')} cair.`
+          const emptyIndexFly2 = fly2Arr.findIndex(n => n === null)
+
+          if (emptyIndexFly2 !== -1) {
+            const { data: existingNodeFly2 } = await supabase
+              .from('matrix_nodes')
+              .select('id')
+              .eq('member_email', activeBoardOwnerFly2)
+              .eq('board_type', 'fly2')
+              .eq('node_index', emptyIndexFly2)
+              .maybeSingle()
+
+            if (existingNodeFly2) {
+              await supabase
+                .from('matrix_nodes')
+                .update({ name: ownerName, email: activeBoardOwnerFly1 })
+                .eq('id', existingNodeFly2.id)
+            } else {
+              await supabase
+                .from('matrix_nodes')
+                .insert({
+                  member_email: activeBoardOwnerFly2,
+                  board_type: 'fly2',
+                  node_index: emptyIndexFly2,
+                  name: ownerName,
+                  email: activeBoardOwnerFly1,
+                  is_user: false
+                })
+            }
+
+            fly2Arr[emptyIndexFly2] = activeBoardOwnerFly1
+            const isFly2Full = fly2Arr.every(n => n !== null)
+
+            if (isFly2Full) {
+              // C. activeBoardOwnerFly2 completes Fly II!
+              const { data: leader2Matrix } = await supabase
+                .from('member_matrix')
+                .select('balance')
+                .eq('email', activeBoardOwnerFly2)
+                .single()
+
+              const leader2NewBalance = (leader2Matrix ? Number(leader2Matrix.balance) : 0) + state.settings.fly2Reward
+              await supabase
+                .from('member_matrix')
+                .update({ balance: leader2NewBalance, has_completed_fly2: true })
+                .eq('email', activeBoardOwnerFly2)
+
+              await supabase.from('transactions').insert({
+                member_email: activeBoardOwnerFly2,
+                date_text: new Date().toLocaleDateString('id-ID'),
+                tx_type: 'fly2',
+                amount: state.settings.fly2Reward,
+                description: 'Bonus Pencairan Matriks Fly II (Fly Utama)',
+              })
+
+              // Split Fly II board
+              await performFly2SplitAsync(activeBoardOwnerFly2)
+              placementMessage += ` Papan Fly II Penuh! Ujroh Fly II Rp ${state.settings.fly2Reward.toLocaleString('id-ID')} cair!`
+            }
+          }
+
+          // C. Split Fly I board
+          await performFly1SplitAsync(activeBoardOwnerFly1)
+          placementMessage += ` Papan Fly I Penuh! Ujroh Fly I Rp ${state.settings.fly1Reward.toLocaleString('id-ID')} cair.`
+        }
       }
     }
 
@@ -1396,12 +1409,22 @@ export async function initializeAndPlaceMemberAsync(recruitName: string, recruit
 
   // 2. Real Supabase Implementation
   try {
-    const state = await fetchMatrixStateAsync(sponsorEmail)
-    const depositAmount = state.settings.depositAmount
+    const isSponsorValid = sponsorEmail && 
+      sponsorEmail.toLowerCase() !== 'admin@abh.com' && 
+      sponsorEmail.toLowerCase() !== 'superadmin@abh.com' &&
+      sponsorEmail.toLowerCase() !== 'member@abh.com' &&
+      (await supabase.from('user_accounts').select('email').eq('email', sponsorEmail).maybeSingle().then(r => !!r.data));
+
+    // Fetch matrix settings
+    const { data: settingsData } = await supabase.from('site_settings').select('*').eq('id', 'global').single()
+    const depositAmount = settingsData ? Number(settingsData.deposit_amount) : 2500000
+    const sponsorReward = settingsData ? Number(settingsData.sponsor_reward) : 250000
+    const fly1Reward = settingsData ? Number(settingsData.fly1_reward) : 3500000
+    const fly2Reward = settingsData ? Number(settingsData.fly2_reward) : 30000000
 
     // Create approved deposit request for record
     await supabase.from('deposit_requests').insert({
-      sponsor_email: sponsorEmail,
+      sponsor_email: isSponsorValid ? sponsorEmail : null,
       recruit_name: recruitName,
       recruit_email: recruitEmail,
       amount: depositAmount,
@@ -1443,90 +1466,93 @@ export async function initializeAndPlaceMemberAsync(recruitName: string, recruit
       await supabase.from('matrix_nodes').insert(recruitNodes)
     }
 
-    // Place recruit on sponsor's matrix
-    const newBalance = state.balance + state.settings.sponsorReward
-    const newDownlines = state.downlinesCount + 1
+    if (isSponsorValid && sponsorEmail) {
+      const state = await fetchMatrixStateAsync(sponsorEmail)
+      // Place recruit on sponsor's matrix
+      const newBalance = state.balance + sponsorReward
+      const newDownlines = state.downlinesCount + 1
 
-    await supabase.from('transactions').insert({
-      member_email: sponsorEmail,
-      date_text: new Date().toLocaleDateString('id-ID'),
-      tx_type: 'sponsor',
-      amount: state.settings.sponsorReward,
-      description: `Ujroh Sponsor Kemitraan: ${recruitName}`,
-    })
+      await supabase.from('transactions').insert({
+        member_email: sponsorEmail,
+        date_text: new Date().toLocaleDateString('id-ID'),
+        tx_type: 'sponsor',
+        amount: sponsorReward,
+        description: `Ujroh Sponsor Kemitraan: ${recruitName}`,
+      })
 
-    const activeBoardOwnerFly1 = await getActiveBoardOwnerAsync(sponsorEmail, 'fly1')
-    const activeBoardOwnerFly2 = await getActiveBoardOwnerAsync(sponsorEmail, 'fly2')
+      const activeBoardOwnerFly1 = await getActiveBoardOwnerAsync(sponsorEmail, 'fly1')
+      const activeBoardOwnerFly2 = await getActiveBoardOwnerAsync(sponsorEmail, 'fly2')
 
-    if (!state.hasCompletedFly1) {
-      const emptyIndex = state.fly1Board.findIndex((n) => n === null)
-      if (emptyIndex !== -1) {
-        await supabase
-          .from('matrix_nodes')
-          .update({ name: recruitName, email: recruitEmail })
-          .eq('member_email', activeBoardOwnerFly1)
-          .eq('board_type', 'fly1')
-          .eq('node_index', emptyIndex)
-
-        state.fly1Board[emptyIndex] = { name: recruitName, email: recruitEmail, role: 'member' }
-        const isFull = state.fly1Board.every((n) => n !== null)
-
-        if (isFull) {
-          const finalBalance = newBalance + state.settings.fly1Reward
+      if (!state.hasCompletedFly1) {
+        const emptyIndex = state.fly1Board.findIndex((n) => n === null)
+        if (emptyIndex !== -1) {
           await supabase
-            .from('member_matrix')
-            .update({ balance: finalBalance, downlines_count: newDownlines, has_completed_fly1: true })
-            .eq('email', sponsorEmail)
+            .from('matrix_nodes')
+            .update({ name: recruitName, email: recruitEmail })
+            .eq('member_email', activeBoardOwnerFly1)
+            .eq('board_type', 'fly1')
+            .eq('node_index', emptyIndex)
 
-          await supabase.from('transactions').insert({
-            member_email: sponsorEmail,
-            date_text: new Date().toLocaleDateString('id-ID'),
-            tx_type: 'fly1',
-            amount: state.settings.fly1Reward,
-            description: 'Bonus Pencairan Matriks Fly I (Pecah Belah Semangka)',
-          })
+          state.fly1Board[emptyIndex] = { name: recruitName, email: recruitEmail, role: 'member' }
+          const isFull = state.fly1Board.every((n) => n !== null)
 
-          // Perform real matrix split for Fly I
-          await performFly1SplitAsync(activeBoardOwnerFly1)
-        } else {
-          await supabase
-            .from('member_matrix')
-            .update({ balance: newBalance, downlines_count: newDownlines })
-            .eq('email', sponsorEmail)
+          if (isFull) {
+            const finalBalance = newBalance + fly1Reward
+            await supabase
+              .from('member_matrix')
+              .update({ balance: finalBalance, downlines_count: newDownlines, has_completed_fly1: true })
+              .eq('email', sponsorEmail)
+
+            await supabase.from('transactions').insert({
+              member_email: sponsorEmail,
+              date_text: new Date().toLocaleDateString('id-ID'),
+              tx_type: 'fly1',
+              amount: fly1Reward,
+              description: 'Bonus Pencairan Matriks Fly I (Pecah Belah Semangka)',
+            })
+
+            // Perform real matrix split for Fly I
+            await performFly1SplitAsync(activeBoardOwnerFly1)
+          } else {
+            await supabase
+              .from('member_matrix')
+              .update({ balance: newBalance, downlines_count: newDownlines })
+              .eq('email', sponsorEmail)
+          }
         }
-      }
-    } else if (!state.hasCompletedFly2) {
-      const emptyIndex = state.fly2Board.findIndex((n) => n === null)
-      if (emptyIndex !== -1) {
-        await supabase
-          .from('matrix_nodes')
-          .update({ name: recruitName, email: recruitEmail })
-          .eq('member_email', activeBoardOwnerFly2)
-          .eq('board_type', 'fly2')
-          .eq('node_index', emptyIndex)
-
-        state.fly2Board[emptyIndex] = { name: recruitName, email: recruitEmail, role: 'member' }
-        const isFull = state.fly2Board.every((n) => n !== null)
-
-        if (isFull) {
-          const finalBalance = newBalance + state.settings.fly2Reward
+      } else if (!state.hasCompletedFly2) {
+        const emptyIndex = state.fly2Board.findIndex((n) => n === null)
+        if (emptyIndex !== -1) {
           await supabase
-            .from('member_matrix')
-            .update({ balance: finalBalance, downlines_count: newDownlines, has_completed_fly2: true })
-            .eq('email', sponsorEmail)
+            .from('matrix_nodes')
+            .update({ name: recruitName, email: recruitEmail })
+            .eq('member_email', activeBoardOwnerFly2)
+            .eq('board_type', 'fly2')
+            .eq('node_index', emptyIndex)
 
-          await supabase.from('transactions').insert({
-            member_email: sponsorEmail,
-            date_text: new Date().toLocaleDateString('id-ID'),
-            tx_type: 'fly2',
-            amount: state.settings.fly2Reward,
-            description: 'Bonus Pencairan Matriks Fly II (Fly Utama)',
-          })
-        } else {
-          await supabase
-            .from('member_matrix')
-            .update({ balance: newBalance, downlines_count: newDownlines })
-            .eq('email', sponsorEmail)
+          state.fly2Board[emptyIndex] = { name: recruitName, email: recruitEmail, role: 'member' }
+          const isFull = state.fly2Board.every((n) => n !== null)
+
+          if (isFull) {
+            const finalBalance = newBalance + fly2Reward
+            await supabase
+              .from('member_matrix')
+              .update({ balance: finalBalance, downlines_count: newDownlines, has_completed_fly2: true })
+              .eq('email', sponsorEmail)
+
+            await supabase.from('transactions').insert({
+              member_email: sponsorEmail,
+              date_text: new Date().toLocaleDateString('id-ID'),
+              tx_type: 'fly2',
+              amount: fly2Reward,
+              description: 'Bonus Pencairan Matriks Fly II (Fly Utama)',
+            })
+          } else {
+            await supabase
+              .from('member_matrix')
+              .update({ balance: newBalance, downlines_count: newDownlines })
+              .eq('email', sponsorEmail)
+          }
         }
       }
     }
