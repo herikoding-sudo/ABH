@@ -1192,6 +1192,7 @@ export default function DashboardPage() {
                       </div>
                     ) : (
                       <>
+                        <pre className="text-xs bg-slate-100 p-2 rounded mb-4 overflow-auto max-h-40">{JSON.stringify(matrixState.fly1Board, null, 2)}</pre>
                         <MatrixTree nodes={matrixState.fly1Board} type="fly1" currentUserEmail={currentUser.email} />
                         <div className="rounded-2xl bg-slate-50 p-4 border border-slate-200 text-center text-sm text-slate-500">
                           Papan membutuhkan <strong>{matrixState.fly1Board.filter((n) => n === null).length} kemitraan dasar baru</strong> untuk terisi penuh dan memicu pembelahan **"Belah Semangka"**.
