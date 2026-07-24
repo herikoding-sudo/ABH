@@ -828,7 +828,8 @@ export async function approveDepositRequestAsync(requestId: string): Promise<{ s
         // Place the graduate in Fly II
         const emptyIndexFly2 = state.fly2Board.findIndex((n) => n === null)
         if (emptyIndexFly2 !== -1) {
-          state.fly2Board[emptyIndexFly2] = { name: state.name || 'Member', email: state.email || '', role: 'member' }
+          const graduate = state.fly1Board[0]
+          state.fly2Board[emptyIndexFly2] = { name: graduate ? graduate.name : 'Member', email: graduate ? graduate.email : '', role: 'member' }
           const isFly2Full = state.fly2Board.every((n) => n !== null)
           if (isFly2Full) {
             state.hasCompletedFly2 = true
@@ -1115,6 +1116,30 @@ export async function approveDepositRequestAsync(requestId: string): Promise<{ s
     console.error('Error approving request in Supabase:', err)
     return { success: false, message: 'Terjadi kesalahan sistem.', splitOccurred: false }
   }
+}
+
+export function rejectDepositRequest(requestId: string): { success: boolean; message: string } {
+  const state = getMatrixState()
+  const req = state.depositRequests.find((r) => r.id === requestId)
+  if (req) {
+    req.status = 'rejected'
+    saveMatrixState(state)
+    return { success: true, message: 'Pengajuan ditolak.' }
+  }
+  return { success: false, message: 'Request tidak ditemukan.' }
+}
+
+export function resetMatrixSimulation() {
+  if (typeof window === 'undefined') return
+  for (let i = 0; i < localStorage.length; i++) {
+    const key = localStorage.key(i)
+    if (key && key.startsWith('abh_matrix_state_')) {
+      localStorage.removeItem(key)
+      i--
+    }
+  }
+  localStorage.removeItem('abh_registered_users')
+  localStorage.removeItem('abh_package_bookings')
 }
 
 export async function rejectDepositRequestAsync(requestId: string): Promise<{ success: boolean; message: string }> {

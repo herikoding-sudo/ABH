@@ -12,6 +12,7 @@ import {
   getSavedPhone,
   MOCK_USERS,
   type User,
+  type DynamicUser,
   getUsersAsync,
   fetchPackagesAsync,
   savePackagesAsync,
@@ -997,13 +998,15 @@ export default function DashboardPage() {
                           Sistem kemitraan matriks berjenjang untuk mendanai Umroh Anda. Penuhi setoran awal Rp {matrixState.settings.depositAmount.toLocaleString('id-ID')} dan dapatkan komisi sponsor serta bonus Fly I &amp; II.
                         </p>
                       </div>
-                      <button
-                        onClick={handleResetSimulation}
-                        className="flex items-center gap-2 rounded-xl bg-slate-100 border border-slate-200 text-slate-600 hover:bg-slate-200 hover:text-slate-800 px-4 py-2.5 text-xs font-bold transition-all shadow-sm shrink-0"
-                      >
-                        <RefreshCw className="size-3.5" />
-                        Reset Simulasi
-                      </button>
+                      {currentUser.role === 'superadmin' && (
+                        <button
+                          onClick={handleResetSimulation}
+                          className="flex items-center gap-2 rounded-xl bg-slate-100 border border-slate-200 text-slate-600 hover:bg-slate-200 hover:text-slate-800 px-4 py-2.5 text-xs font-bold transition-all shadow-sm shrink-0"
+                        >
+                          <RefreshCw className="size-3.5" />
+                          Reset Simulasi
+                        </button>
+                      )}
                     </div>
 
                     {/* Stats widgets */}
@@ -2387,14 +2390,16 @@ export default function DashboardPage() {
                         Simpan Seluruh Pengaturan
                       </button>
 
-                      <button
-                        type="button"
-                        onClick={handleResetSimulation}
-                        className="flex items-center gap-2 rounded-xl bg-rose-600 px-5 py-3 text-sm font-semibold text-white shadow-md hover:bg-rose-700 transition-all sm:ml-auto"
-                      >
-                        <RefreshCw className="size-4" />
-                        Reset Simulasi Jaringan
-                      </button>
+                      {currentUser.role === 'superadmin' && (
+                        <button
+                          type="button"
+                          onClick={handleResetSimulation}
+                          className="flex items-center gap-2 rounded-xl bg-rose-600 px-5 py-3 text-sm font-semibold text-white shadow-md hover:bg-rose-700 transition-all sm:ml-auto"
+                        >
+                          <RefreshCw className="size-4" />
+                          Reset Simulasi Jaringan
+                        </button>
+                      )}
                     </div>
                   )}
                 </form>

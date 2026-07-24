@@ -295,6 +295,7 @@ export async function fetchSchedulesAsync(): Promise<Schedule[]> {
         landing: item.landing,
         image: item.image,
         allIn: item.all_in,
+        tags: item.tags || [],
       }))
       saveSchedules(mapped)
       return mapped
