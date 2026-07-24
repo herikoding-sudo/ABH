@@ -62,22 +62,11 @@ const INITIAL_FLY2_BOARD: MatrixNode[] = [
   null, null, null, null, null, null, null, null,
 ]
 
-const INITIAL_DEPOSIT_REQUESTS: DepositRequest[] = [
-  {
-    id: 'req_demo_1',
-    date: '19/07/2026',
-    sponsorEmail: 'member@abh.com',
-    recruitName: 'Gita Hermawan',
-    recruitEmail: 'gita@email.com',
-    amount: 2500000,
-    status: 'pending',
-    proofImage: '/images/proof-mock.png',
-  },
-]
+const INITIAL_DEPOSIT_REQUESTS: DepositRequest[] = []
 
 // Local Fallback Helpers
 export function getActiveUserEmail(): string {
-  if (typeof window === 'undefined') return 'member@abh.com'
+  if (typeof window === 'undefined') return 'admin@abh.com'
   const saved = sessionStorage.getItem('abh_session')
   if (saved) {
     try {
@@ -89,7 +78,7 @@ export function getActiveUserEmail(): string {
       console.error(e)
     }
   }
-  return 'member@abh.com'
+  return 'admin@abh.com'
 }
 
 export function getMatrixStateForEmail(email: string): MatrixState {
@@ -209,7 +198,7 @@ export function getMatrixStateForEmail(email: string): MatrixState {
           return { ...n, stars: mState.downlinesCount || 0 }
         }
         // Fallback for mock users
-        if (n.email === 'member@abh.com') return { ...n, stars: 2 }
+        return { ...n, stars: 0 }
       }
       return n
     })
@@ -387,7 +376,7 @@ export async function performFly1SplitAsync(boardOwnerEmail: string): Promise<vo
 }
 
 export async function getSponsorEmailAsync(email: string): Promise<string> {
-  if (!isSupabaseConfigured || !supabase) return 'member@abh.com'
+  if (!isSupabaseConfigured || !supabase) return email
   try {
     const { data } = await supabase
       .from('deposit_requests')
@@ -401,7 +390,7 @@ export async function getSponsorEmailAsync(email: string): Promise<string> {
   } catch (err) {
     console.error('Error getting sponsor email:', err)
   }
-  return 'member@abh.com'
+  return email
 }
 
 export async function performFly2SplitAsync(boardOwnerEmail: string): Promise<void> {
@@ -839,7 +828,7 @@ export async function approveDepositRequestAsync(requestId: string): Promise<{ s
         // Place the graduate in Fly II
         const emptyIndexFly2 = state.fly2Board.findIndex((n) => n === null)
         if (emptyIndexFly2 !== -1) {
-          state.fly2Board[emptyIndexFly2] = { name: state.name || 'Member', email: state.email || 'member@abh.com', role: 'member' }
+          state.fly2Board[emptyIndexFly2] = { name: state.name || 'Member', email: state.email || '', role: 'member' }
           const isFly2Full = state.fly2Board.every((n) => n !== null)
           if (isFly2Full) {
             state.hasCompletedFly2 = true
@@ -867,7 +856,7 @@ export async function approveDepositRequestAsync(requestId: string): Promise<{ s
     const { data: requestData } = await supabase.from('deposit_requests').select('*').eq('id', requestId).single()
     if (!requestData) return { success: false, message: 'Request tidak ditemukan.', splitOccurred: false }
 
-    const email = requestData.sponsor_email || 'member@abh.com'
+    const email = requestData.sponsor_email || 'admin@abh.com'
     const state = await fetchMatrixStateAsync(email)
 
     // Update status to approved ONLY if it is currently pending (atomic check)
@@ -1137,42 +1126,14 @@ export async function resetMatrixSimulationAsync(): Promise<boolean> {
   if (!isSupabaseConfigured || !supabase) return true
 
   try {
-    // Wipe all test users and data except default accounts
-    const keepList = '(member@abh.com,admin@abh.com,superadmin@abh.com)'
+    // Wipe ALL data — complete reset
+    const keepList = '(admin@abh.com,superadmin@abh.com)'
     
-    await supabase.from('matrix_nodes').delete().not('member_email', 'in', keepList)
+    await supabase.from('matrix_nodes').delete().neq('member_email', '')
     await supabase.from('member_matrix').delete().not('email', 'in', keepList)
-    await supabase.from('transactions').delete().not('member_email', 'in', keepList)
-    await supabase.from('deposit_requests').delete().neq('id', '00000000-0000-0000-0000-000000000000') // delete all
+    await supabase.from('transactions').delete().neq('id', '00000000-0000-0000-0000-000000000000')
+    await supabase.from('deposit_requests').delete().neq('id', '00000000-0000-0000-0000-000000000000')
     await supabase.from('user_accounts').delete().not('email', 'in', keepList)
-
-    // Restore default member@abh.com stats
-    await supabase.from('member_matrix')
-      .update({ balance: 0, downlines_count: 0, has_completed_fly1: false, has_completed_fly2: false })
-      .eq('email', 'member@abh.com')
-
-    // Restore default member@abh.com Fly 1 and Fly 2 nodes
-    await supabase.from('matrix_nodes').delete().eq('member_email', 'member@abh.com')
-    
-    // Seed clean boards for member@abh.com — only Ahmad at Puncak, rest empty
-    const defaultNodesFly1 = Array.from({ length: 7 }).map((_, idx) => ({
-      member_email: 'member@abh.com',
-      board_type: 'fly1' as const,
-      node_index: idx,
-      name: idx === 0 ? 'Ahmad (Member)' : null,
-      email: idx === 0 ? 'member@abh.com' : null,
-      is_user: idx === 0,
-    }))
-    
-    const defaultNodesFly2 = Array.from({ length: 15 }).map((_, idx) => ({
-      member_email: 'member@abh.com',
-      board_type: 'fly2' as const,
-      node_index: idx,
-      name: idx === 0 ? 'Ahmad (Member)' : null,
-      email: idx === 0 ? 'member@abh.com' : null,
-      is_user: idx === 0,
-    }))
-    await supabase.from('matrix_nodes').insert([...defaultNodesFly1, ...defaultNodesFly2])
 
     // Re-initialize state
     await fetchMatrixStateAsync()
@@ -1199,20 +1160,7 @@ export type PackageBooking = {
   date: string
 }
 
-const INITIAL_BOOKINGS: PackageBooking[] = [
-  {
-    id: 'book_demo_1',
-    memberEmail: 'member@abh.com',
-    packageName: 'Paket VIP 9 D',
-    scheduleDate: '25 Sep 2026',
-    passengerName: 'Ahmad (Member)',
-    passengerPhone: '0812-3456-7890',
-    amount: 37500000,
-    status: 'pending',
-    proofImage: '/images/proof-mock.png',
-    date: '19/07/2026',
-  },
-]
+const INITIAL_BOOKINGS: PackageBooking[] = []
 
 export function getSavedPackageBookings(): PackageBooking[] {
   if (isSupabaseConfigured && supabase) return INITIAL_BOOKINGS
@@ -1365,7 +1313,7 @@ export async function rejectPackageBookingAsync(bookingId: string): Promise<{ su
   return { success: true, message: 'Pemesanan paket telah ditolak.' }
 }
 
-export async function initializeAndPlaceMemberAsync(recruitName: string, recruitEmail: string, sponsorEmail: string = 'member@abh.com'): Promise<{ success: boolean; message: string }> {
+export async function initializeAndPlaceMemberAsync(recruitName: string, recruitEmail: string, sponsorEmail: string = 'admin@abh.com'): Promise<{ success: boolean; message: string }> {
   if (isSupabaseConfigured && supabase) {
     return { success: true, message: 'Registrasi berhasil. Menunggu verifikasi admin.' }
   }
