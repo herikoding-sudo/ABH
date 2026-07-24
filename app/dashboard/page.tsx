@@ -1204,35 +1204,37 @@ export default function DashboardPage() {
                 {/* MEMBER TAB 3: FLY 2 BOARD */}
                 {memberTab === 'fly2' && (
                   <div className="relative">
-                    {!matrixState.hasCompletedFly1 && (
-                      <div className="absolute inset-0 z-10 flex flex-col items-center justify-center rounded-3xl bg-slate-100/80 p-6 text-center backdrop-blur-[2px] border border-slate-200">
-                        <Lock className="size-12 text-slate-400" />
-                        <h3 className="mt-4 text-lg font-bold text-slate-855">Matriks Fly II Terkunci</h3>
-                        <p className="mt-1 text-sm text-slate-500 max-w-sm">
+                    {!matrixState.hasCompletedFly1 ? (
+                      <div className="rounded-3xl bg-white p-12 md:p-16 border border-slate-200 shadow-sm flex flex-col items-center justify-center text-center space-y-4">
+                        <div className="rounded-2xl bg-slate-50 p-4 text-slate-400 border border-slate-100 shadow-sm">
+                          <Lock className="size-12" />
+                        </div>
+                        <h3 className="text-xl font-bold text-slate-900 mt-2">Matriks Fly II Terkunci</h3>
+                        <p className="text-sm text-slate-500 max-w-md leading-relaxed">
                           Selesaikan dan penuhi Papan Fly I terlebih dahulu untuk naik tingkat dan membuka Matriks Fly II.
                         </p>
                       </div>
-                    )}
-
-                    <div className="rounded-3xl bg-white p-6 md:p-8 border border-slate-200 shadow-sm space-y-6">
-                      <div className="border-b border-slate-100 pb-3 flex justify-between items-center flex-wrap gap-2">
-                        <div>
-                          <h3 className="text-lg font-bold text-slate-900">Papan Matriks Kemitraan: Fly II</h3>
-                          <p className="text-sm text-slate-500 mt-1">Papan Utama 4 Tingkat (Total 15 Titik) dengan payout Rp {matrixState.settings.fly2Reward.toLocaleString('id-ID')}.</p>
+                    ) : (
+                      <div className="rounded-3xl bg-white p-6 md:p-8 border border-slate-200 shadow-sm space-y-6">
+                        <div className="border-b border-slate-100 pb-3 flex justify-between items-center flex-wrap gap-2">
+                          <div>
+                            <h3 className="text-lg font-bold text-slate-900">Papan Matriks Kemitraan: Fly II</h3>
+                            <p className="text-sm text-slate-500 mt-1">Papan Utama 4 Tingkat (Total 15 Titik) dengan payout Rp {matrixState.settings.fly2Reward.toLocaleString('id-ID')}.</p>
+                          </div>
+                          <span className="rounded-lg bg-emerald-100 px-3 py-1 text-xs font-bold text-emerald-700 uppercase">
+                            {matrixState.hasCompletedFly2 ? 'SELESAI' : 'AKTIF'}
+                          </span>
                         </div>
-                        <span className="rounded-lg bg-emerald-100 px-3 py-1 text-xs font-bold text-emerald-700 uppercase">
-                          {matrixState.hasCompletedFly2 ? 'SELESAI' : 'AKTIF'}
-                        </span>
+
+                        <MatrixTree nodes={matrixState.fly2Board} type="fly2" currentUserEmail={currentUser.email} />
+
+                        {!matrixState.hasCompletedFly2 && (
+                          <div className="rounded-2xl bg-slate-50 p-4 border border-slate-200 text-center text-sm text-slate-500">
+                            Papan membutuhkan <strong>{matrixState.fly2Board.filter((n) => n === null).length} kemitraan dasar baru</strong> untuk terisi penuh.
+                          </div>
+                        )}
                       </div>
-
-                      <MatrixTree nodes={matrixState.fly2Board} type="fly2" currentUserEmail={currentUser.email} />
-
-                      {matrixState.hasCompletedFly1 && !matrixState.hasCompletedFly2 && (
-                        <div className="rounded-2xl bg-slate-50 p-4 border border-slate-200 text-center text-sm text-slate-500">
-                          Papan membutuhkan <strong>{matrixState.fly2Board.filter((n) => n === null).length} kemitraan dasar baru</strong> untuk terisi penuh.
-                        </div>
-                      )}
-                    </div>
+                    )}
                   </div>
                 )}
 
