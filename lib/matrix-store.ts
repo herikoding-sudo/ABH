@@ -879,8 +879,17 @@ export async function approveDepositRequestAsync(requestId: string): Promise<{ s
     const email = requestData.sponsor_email || 'member@abh.com'
     const state = await fetchMatrixStateAsync(email)
 
-    // Update status to approved
-    await supabase.from('deposit_requests').update({ status: 'approved' }).eq('id', requestId)
+    // Update status to approved ONLY if it is currently pending (atomic check)
+    const { data: updateRes } = await supabase
+      .from('deposit_requests')
+      .update({ status: 'approved' })
+      .eq('id', requestId)
+      .eq('status', 'pending')
+      .select()
+
+    if (!updateRes || updateRes.length === 0) {
+      return { success: false, message: 'Pengajuan deposit ini sudah diproses sebelumnya.', splitOccurred: false }
+    }
 
     // Activate user account and pre-seed matrix boards
     await supabase.from('user_accounts').update({ status: 'active' }).eq('email', requestData.recruit_email)

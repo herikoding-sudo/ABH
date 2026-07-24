@@ -148,6 +148,7 @@ export default function DashboardPage() {
   // Receipt Modal State
   const [selectedReceipt, setSelectedReceipt] = useState<any>(null)
   const [showReceiptModal, setShowReceiptModal] = useState(false)
+  const [actionLoading, setActionLoading] = useState<string | null>(null)
 
   const loadData = () => {
     const session = getSession()
@@ -341,43 +342,87 @@ export default function DashboardPage() {
 
   // Admin approve/reject request (Async Supabase)
   const handleApproveRequest = async (requestId: string) => {
-    const res = await approveDepositRequestAsync(requestId)
-    const freshState = await fetchMatrixStateAsync()
-    setMatrixState(freshState)
-    if (res.success) {
-      if (res.splitOccurred) {
-        setSplitModalData({ isOpen: true, message: res.message })
+    if (actionLoading) return
+    setActionLoading(requestId)
+    try {
+      const res = await approveDepositRequestAsync(requestId)
+      const freshState = await fetchMatrixStateAsync()
+      setMatrixState(freshState)
+      if (res.success) {
+        if (res.splitOccurred) {
+          setSplitModalData({ isOpen: true, message: res.message })
+        } else {
+          showToast(res.message)
+        }
       } else {
         showToast(res.message)
       }
+    } catch (err) {
+      console.error(err)
+      showToast('Terjadi kesalahan.')
+    } finally {
+      setActionLoading(null)
     }
   }
 
   const handleRejectRequest = async (requestId: string) => {
-    const res = await rejectDepositRequestAsync(requestId)
-    const freshState = await fetchMatrixStateAsync()
-    setMatrixState(freshState)
-    if (res.success) {
-      showToast(res.message)
+    if (actionLoading) return
+    setActionLoading(requestId)
+    try {
+      const res = await rejectDepositRequestAsync(requestId)
+      const freshState = await fetchMatrixStateAsync()
+      setMatrixState(freshState)
+      if (res.success) {
+        showToast(res.message)
+      } else {
+        showToast(res.message)
+      }
+    } catch (err) {
+      console.error(err)
+      showToast('Terjadi kesalahan.')
+    } finally {
+      setActionLoading(null)
     }
   }
 
   // Admin approve/reject package booking (Async Supabase)
   const handleApproveBooking = async (bookingId: string) => {
-    const res = await approvePackageBookingAsync(bookingId)
-    if (res.success) {
-      showToast(res.message)
-      const list = await fetchPackageBookingsAsync(currentUser?.role === 'member' ? currentUser?.email : undefined)
-      setPackageBookings(list)
+    if (actionLoading) return
+    setActionLoading(bookingId)
+    try {
+      const res = await approvePackageBookingAsync(bookingId)
+      if (res.success) {
+        showToast(res.message)
+        const list = await fetchPackageBookingsAsync(currentUser?.role === 'member' ? currentUser?.email : undefined)
+        setPackageBookings(list)
+      } else {
+        showToast(res.message)
+      }
+    } catch (err) {
+      console.error(err)
+      showToast('Terjadi kesalahan.')
+    } finally {
+      setActionLoading(null)
     }
   }
 
   const handleRejectBooking = async (bookingId: string) => {
-    const res = await rejectPackageBookingAsync(bookingId)
-    if (res.success) {
-      showToast(res.message)
-      const list = await fetchPackageBookingsAsync(currentUser?.role === 'member' ? currentUser?.email : undefined)
-      setPackageBookings(list)
+    if (actionLoading) return
+    setActionLoading(bookingId)
+    try {
+      const res = await rejectPackageBookingAsync(bookingId)
+      if (res.success) {
+        showToast(res.message)
+        const list = await fetchPackageBookingsAsync(currentUser?.role === 'member' ? currentUser?.email : undefined)
+        setPackageBookings(list)
+      } else {
+        showToast(res.message)
+      }
+    } catch (err) {
+      console.error(err)
+      showToast('Terjadi kesalahan.')
+    } finally {
+      setActionLoading(null)
     }
   }
 
@@ -1880,15 +1925,17 @@ export default function DashboardPage() {
                                         <>
                                           <button
                                             onClick={() => handleApproveRequest(req.id)}
-                                            className="inline-flex items-center gap-1 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs px-2.5 py-1.5 rounded-lg shadow-sm"
+                                            disabled={actionLoading !== null}
+                                            className={`inline-flex items-center gap-1 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs px-2.5 py-1.5 rounded-lg shadow-sm ${actionLoading !== null ? 'opacity-50 cursor-not-allowed' : ''}`}
                                           >
-                                            <Check className="size-3.5" /> Setuju
+                                            {actionLoading === req.id ? 'Proses...' : <><Check className="size-3.5" /> Setuju</>}
                                           </button>
                                           <button
                                             onClick={() => handleRejectRequest(req.id)}
-                                            className="inline-flex items-center gap-1 bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs px-2.5 py-1.5 rounded-lg shadow-sm"
+                                            disabled={actionLoading !== null}
+                                            className={`inline-flex items-center gap-1 bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs px-2.5 py-1.5 rounded-lg shadow-sm ${actionLoading !== null ? 'opacity-50 cursor-not-allowed' : ''}`}
                                           >
-                                            <X className="size-3.5" /> Tolak
+                                            {actionLoading === req.id ? '...' : <><X className="size-3.5" /> Tolak</>}
                                           </button>
                                         </>
                                       ) : (
@@ -1965,15 +2012,17 @@ export default function DashboardPage() {
                                         <>
                                           <button
                                             onClick={() => handleApproveBooking(book.id)}
-                                            className="inline-flex items-center gap-1 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs px-2.5 py-1.5 rounded-lg shadow-sm"
+                                            disabled={actionLoading !== null}
+                                            className={`inline-flex items-center gap-1 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs px-2.5 py-1.5 rounded-lg shadow-sm ${actionLoading !== null ? 'opacity-50 cursor-not-allowed' : ''}`}
                                           >
-                                            <Check className="size-3.5" /> Setuju
+                                            {actionLoading === book.id ? 'Proses...' : <><Check className="size-3.5" /> Setuju</>}
                                           </button>
                                           <button
                                             onClick={() => handleRejectBooking(book.id)}
-                                            className="inline-flex items-center gap-1 bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs px-2.5 py-1.5 rounded-lg shadow-sm"
+                                            disabled={actionLoading !== null}
+                                            className={`inline-flex items-center gap-1 bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs px-2.5 py-1.5 rounded-lg shadow-sm ${actionLoading !== null ? 'opacity-50 cursor-not-allowed' : ''}`}
                                           >
-                                            <X className="size-3.5" /> Tolak
+                                            {actionLoading === book.id ? '...' : <><X className="size-3.5" /> Tolak</>}
                                           </button>
                                         </>
                                       ) : (
