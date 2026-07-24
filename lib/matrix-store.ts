@@ -1449,7 +1449,7 @@ export async function initializeAndPlaceMemberAsync(recruitName: string, recruit
 
     // Create approved deposit request for record
     await supabase.from('deposit_requests').insert({
-      sponsor_email: isSponsorValid ? sponsorEmail : null,
+      sponsor_email: isSponsorValid && sponsorEmail ? sponsorEmail : '',
       recruit_name: recruitName,
       recruit_email: recruitEmail,
       amount: depositAmount,

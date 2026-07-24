@@ -136,9 +136,8 @@ export async function registerUserAsync(name: string, email: string, password: s
       })
       if (error) throw error
 
-      // Automatically create a pending deposit request
       const { error: depErr } = await supabase.from('deposit_requests').insert({
-        sponsor_email: sponsorEmail || null,
+        sponsor_email: sponsorEmail || '',
         recruit_name: name,
         recruit_email: email,
         amount: 2500000,
