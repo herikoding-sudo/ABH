@@ -1147,13 +1147,13 @@ export async function resetMatrixSimulationAsync(): Promise<boolean> {
 
   try {
     // Wipe all test users and data except default accounts
-    const defaultEmails = ['member@abh.com', 'admin@abh.com', 'superadmin@abh.com']
+    const keepList = '(member@abh.com,admin@abh.com,superadmin@abh.com)'
     
-    await supabase.from('matrix_nodes').delete().not('member_email', 'in', defaultEmails)
-    await supabase.from('member_matrix').delete().not('email', 'in', defaultEmails)
-    await supabase.from('transactions').delete().not('member_email', 'in', defaultEmails)
+    await supabase.from('matrix_nodes').delete().not('member_email', 'in', keepList)
+    await supabase.from('member_matrix').delete().not('email', 'in', keepList)
+    await supabase.from('transactions').delete().not('member_email', 'in', keepList)
     await supabase.from('deposit_requests').delete().neq('id', '00000000-0000-0000-0000-000000000000') // delete all
-    await supabase.from('user_accounts').delete().not('email', 'in', defaultEmails)
+    await supabase.from('user_accounts').delete().not('email', 'in', keepList)
 
     // Restore default member@abh.com stats
     await supabase.from('member_matrix')
