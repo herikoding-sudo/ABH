@@ -54,31 +54,12 @@ const DEFAULT_SETTINGS: MatrixSettings = {
 }
 
 const INITIAL_FLY1_BOARD: MatrixNode[] = [
-  { name: 'Ahmad (Member)', email: 'member@abh.com', role: 'member', isUser: true },
-  { name: 'Farhan', email: 'farhan@email.com', role: 'member' },
-  { name: 'Diana', email: 'diana@email.com', role: 'member' },
-  { name: 'Eko', email: 'eko@email.com', role: 'member' },
-  { name: 'Fitri', email: 'fitri@email.com', role: 'member' },
-  null,
-  null,
+  null, null, null, null, null, null, null,
 ]
 
 const INITIAL_FLY2_BOARD: MatrixNode[] = [
-  { name: 'Ahmad (Member)', email: 'member@abh.com', role: 'member', isUser: true },
-  { name: 'Sponsor A', email: 'sp_a@email.com', role: 'member' },
-  { name: 'Sponsor B', email: 'sp_b@email.com', role: 'member' },
-  { name: 'Mitra C', email: 'm_c@email.com', role: 'member' },
-  { name: 'Mitra D', email: 'm_d@email.com', role: 'member' },
-  { name: 'Mitra E', email: 'm_e@email.com', role: 'member' },
-  { name: 'Mitra F', email: 'm_f@email.com', role: 'member' },
-  { name: 'Mitra G', email: 'm_g@email.com', role: 'member' },
-  { name: 'Mitra H', email: 'm_h@email.com', role: 'member' },
-  { name: 'Mitra I', email: 'm_i@email.com', role: 'member' },
-  { name: 'Mitra J', email: 'm_j@email.com', role: 'member' },
-  { name: 'Mitra K', email: 'm_k@email.com', role: 'member' },
-  { name: 'Mitra L', email: 'm_l@email.com', role: 'member' },
-  null,
-  null,
+  null, null, null, null, null, null, null,
+  null, null, null, null, null, null, null, null,
 ]
 
 const INITIAL_DEPOSIT_REQUESTS: DepositRequest[] = [
@@ -591,6 +572,10 @@ export async function fetchMatrixStateAsync(providedEmail?: string): Promise<Mat
     let fly1Board = [...INITIAL_FLY1_BOARD]
     let fly2Board = [...INITIAL_FLY2_BOARD]
 
+    // Look up the board owner's display name
+    const { data: boardOwnerAcc } = await supabase.from('user_accounts').select('name').eq('email', boardEmailFly1).maybeSingle()
+    const boardOwnerName = boardOwnerAcc?.name || boardEmailFly1
+
     // Fetch Fly 1 nodes using boardEmailFly1
     const { data: nodesDataFly1 } = await supabase
       .from('matrix_nodes')
@@ -607,16 +592,17 @@ export async function fetchMatrixStateAsync(providedEmail?: string): Promise<Mat
       })
       fly1Board = fly1Arr
     } else {
-      // Seed Fly 1 nodes
-      const seedPayloadFly1 = INITIAL_FLY1_BOARD.map((item, idx) => ({
+      // Seed Fly 1 nodes — user at Puncak, all others empty
+      const seedPayloadFly1 = Array.from({ length: 7 }).map((_, idx) => ({
         member_email: boardEmailFly1,
-        board_type: 'fly1',
+        board_type: 'fly1' as const,
         node_index: idx,
-        name: item?.name || null,
-        email: item?.email || null,
-        is_user: !!item?.isUser,
+        name: idx === 0 ? boardOwnerName : null,
+        email: idx === 0 ? boardEmailFly1 : null,
+        is_user: idx === 0,
       }))
       await supabase.from('matrix_nodes').insert(seedPayloadFly1)
+      fly1Board = [{ name: boardOwnerName, email: boardEmailFly1, role: 'member', isUser: true }, null, null, null, null, null, null]
     }
 
     // Fetch Fly 2 nodes using boardEmailFly2
@@ -635,16 +621,21 @@ export async function fetchMatrixStateAsync(providedEmail?: string): Promise<Mat
       })
       fly2Board = fly2Arr
     } else {
-      // Seed Fly 2 nodes
-      const seedPayloadFly2 = INITIAL_FLY2_BOARD.map((item, idx) => ({
+      // Look up the Fly 2 board owner's display name
+      const { data: boardOwnerAcc2 } = await supabase.from('user_accounts').select('name').eq('email', boardEmailFly2).maybeSingle()
+      const boardOwnerName2 = boardOwnerAcc2?.name || boardEmailFly2
+
+      // Seed Fly 2 nodes — user at Puncak, all others empty
+      const seedPayloadFly2 = Array.from({ length: 15 }).map((_, idx) => ({
         member_email: boardEmailFly2,
-        board_type: 'fly2',
+        board_type: 'fly2' as const,
         node_index: idx,
-        name: item?.name || null,
-        email: item?.email || null,
-        is_user: !!item?.isUser,
+        name: idx === 0 ? boardOwnerName2 : null,
+        email: idx === 0 ? boardEmailFly2 : null,
+        is_user: idx === 0,
       }))
       await supabase.from('matrix_nodes').insert(seedPayloadFly2)
+      fly2Board = [{ name: boardOwnerName2, email: boardEmailFly2, role: 'member', isUser: true }, ...Array(14).fill(null)]
     }
 
     // Fetch and populate stars (downlines_count) for all node emails
@@ -1157,39 +1148,30 @@ export async function resetMatrixSimulationAsync(): Promise<boolean> {
 
     // Restore default member@abh.com stats
     await supabase.from('member_matrix')
-      .update({ balance: 1250000, downlines_count: 5, has_completed_fly1: false, has_completed_fly2: false })
+      .update({ balance: 0, downlines_count: 0, has_completed_fly1: false, has_completed_fly2: false })
       .eq('email', 'member@abh.com')
 
     // Restore default member@abh.com Fly 1 and Fly 2 nodes
     await supabase.from('matrix_nodes').delete().eq('member_email', 'member@abh.com')
     
-    const defaultNodesFly1 = [
-      { member_email: 'member@abh.com', board_type: 'fly1', node_index: 0, name: 'Ahmad (Member)', email: 'member@abh.com', is_user: true },
-      { member_email: 'member@abh.com', board_type: 'fly1', node_index: 1, name: 'Farhan', email: 'farhan@email.com', is_user: false },
-      { member_email: 'member@abh.com', board_type: 'fly1', node_index: 2, name: 'Diana', email: 'diana@email.com', is_user: false },
-      { member_email: 'member@abh.com', board_type: 'fly1', node_index: 3, name: 'Eko', email: 'eko@email.com', is_user: false },
-      { member_email: 'member@abh.com', board_type: 'fly1', node_index: 4, name: 'Fitri', email: 'fitri@email.com', is_user: false },
-      { member_email: 'member@abh.com', board_type: 'fly1', node_index: 5, name: null, email: null, is_user: false },
-      { member_email: 'member@abh.com', board_type: 'fly1', node_index: 6, name: null, email: null, is_user: false },
-    ]
+    // Seed clean boards for member@abh.com — only Ahmad at Puncak, rest empty
+    const defaultNodesFly1 = Array.from({ length: 7 }).map((_, idx) => ({
+      member_email: 'member@abh.com',
+      board_type: 'fly1' as const,
+      node_index: idx,
+      name: idx === 0 ? 'Ahmad (Member)' : null,
+      email: idx === 0 ? 'member@abh.com' : null,
+      is_user: idx === 0,
+    }))
     
-    const defaultNodesFly2 = [
-      { member_email: 'member@abh.com', board_type: 'fly2', node_index: 0, name: 'Ahmad (Member)', email: 'member@abh.com', is_user: true },
-      { member_email: 'member@abh.com', board_type: 'fly2', node_index: 1, name: 'Sponsor A', email: 'sp_a@email.com', is_user: false },
-      { member_email: 'member@abh.com', board_type: 'fly2', node_index: 2, name: 'Sponsor B', email: 'sp_b@email.com', is_user: false },
-      { member_email: 'member@abh.com', board_type: 'fly2', node_index: 3, name: 'Mitra C', email: 'm_c@email.com', is_user: false },
-      { member_email: 'member@abh.com', board_type: 'fly2', node_index: 4, name: 'Mitra D', email: 'm_d@email.com', is_user: false },
-      { member_email: 'member@abh.com', board_type: 'fly2', node_index: 5, name: 'Mitra E', email: 'm_e@email.com', is_user: false },
-      { member_email: 'member@abh.com', board_type: 'fly2', node_index: 6, name: 'Mitra F', email: 'm_f@email.com', is_user: false },
-      { member_email: 'member@abh.com', board_type: 'fly2', node_index: 7, name: 'Mitra G', email: 'm_g@email.com', is_user: false },
-      { member_email: 'member@abh.com', board_type: 'fly2', node_index: 8, name: 'Mitra H', email: 'm_h@email.com', is_user: false },
-      { member_email: 'member@abh.com', board_type: 'fly2', node_index: 9, name: 'Mitra I', email: 'm_i@email.com', is_user: false },
-      { member_email: 'member@abh.com', board_type: 'fly2', node_index: 10, name: 'Mitra J', email: 'm_j@email.com', is_user: false },
-      { member_email: 'member@abh.com', board_type: 'fly2', node_index: 11, name: 'Mitra K', email: 'm_k@email.com', is_user: false },
-      { member_email: 'member@abh.com', board_type: 'fly2', node_index: 12, name: 'Mitra L', email: 'm_l@email.com', is_user: false },
-      { member_email: 'member@abh.com', board_type: 'fly2', node_index: 13, name: null, email: null, is_user: false },
-      { member_email: 'member@abh.com', board_type: 'fly2', node_index: 14, name: null, email: null, is_user: false },
-    ]
+    const defaultNodesFly2 = Array.from({ length: 15 }).map((_, idx) => ({
+      member_email: 'member@abh.com',
+      board_type: 'fly2' as const,
+      node_index: idx,
+      name: idx === 0 ? 'Ahmad (Member)' : null,
+      email: idx === 0 ? 'member@abh.com' : null,
+      is_user: idx === 0,
+    }))
     await supabase.from('matrix_nodes').insert([...defaultNodesFly1, ...defaultNodesFly2])
 
     // Re-initialize state
